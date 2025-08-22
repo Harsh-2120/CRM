@@ -3,6 +3,7 @@ module crm
 go 1.24.2
 
 require (
+	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgconn v1.14.3
 	google.golang.org/grpc v1.75.0
 	google.golang.org/protobuf v1.36.8

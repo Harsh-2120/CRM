@@ -3929,13 +3929,14 @@ const file_api_proto_crm_proto_rawDesc = "" +
 	"\x18ListOpportunitiesRequest\x12\x19\n" +
 	"\bowner_id\x18\x01 \x01(\rR\aownerId\"S\n" +
 	"\x19ListOpportunitiesResponse\x126\n" +
-	"\ropportunities\x18\x01 \x03(\v2\x10.crm.OpportunityR\ropportunities2\xae\x05\n" +
+	"\ropportunities\x18\x01 \x03(\v2\x10.crm.OpportunityR\ropportunities2\xff\x02\n" +
 	"\x0fActivityService\x12I\n" +
 	"\x0eCreateActivity\x12\x1a.crm.CreateActivityRequest\x1a\x1b.crm.CreateActivityResponse\x12@\n" +
 	"\vGetActivity\x12\x17.crm.GetActivityRequest\x1a\x18.crm.GetActivityResponse\x12I\n" +
 	"\x0eUpdateActivity\x12\x1a.crm.UpdateActivityRequest\x1a\x1b.crm.UpdateActivityResponse\x12I\n" +
 	"\x0eDeleteActivity\x12\x1a.crm.DeleteActivityRequest\x1a\x1b.crm.DeleteActivityResponse\x12I\n" +
-	"\x0eListActivities\x12\x1a.crm.ListActivitiesRequest\x1a\x1b.crm.ListActivitiesResponse\x12=\n" +
+	"\x0eListActivities\x12\x1a.crm.ListActivitiesRequest\x1a\x1b.crm.ListActivitiesResponse2\xbc\x02\n" +
+	"\vTaskService\x12=\n" +
 	"\n" +
 	"CreateTask\x12\x16.crm.CreateTaskRequest\x1a\x17.crm.CreateTaskResponse\x124\n" +
 	"\aGetTask\x12\x13.crm.GetTaskRequest\x1a\x14.crm.GetTaskResponse\x12=\n" +
@@ -3973,7 +3974,7 @@ const file_api_proto_crm_proto_rawDesc = "" +
 	"\x0eGetOpportunity\x12\x1a.crm.GetOpportunityRequest\x1a\x1b.crm.GetOpportunityResponse\x12R\n" +
 	"\x11UpdateOpportunity\x12\x1d.crm.UpdateOpportunityRequest\x1a\x1e.crm.UpdateOpportunityResponse\x12R\n" +
 	"\x11DeleteOpportunity\x12\x1d.crm.DeleteOpportunityRequest\x1a\x1e.crm.DeleteOpportunityResponse\x12R\n" +
-	"\x11ListOpportunities\x12\x1d.crm.ListOpportunitiesRequest\x1a\x1e.crm.ListOpportunitiesResponseB\tZ\a./pb;pbb\x06proto3"
+	"\x11ListOpportunities\x12\x1d.crm.ListOpportunitiesRequest\x1a\x1e.crm.ListOpportunitiesResponseB\x0fZ\rCRM/api/pb;pbb\x06proto3"
 
 var (
 	file_api_proto_crm_proto_rawDescOnce sync.Once
@@ -4101,11 +4102,11 @@ var file_api_proto_crm_proto_depIdxs = []int32{
 	5,  // 39: crm.ActivityService.UpdateActivity:input_type -> crm.UpdateActivityRequest
 	7,  // 40: crm.ActivityService.DeleteActivity:input_type -> crm.DeleteActivityRequest
 	9,  // 41: crm.ActivityService.ListActivities:input_type -> crm.ListActivitiesRequest
-	12, // 42: crm.ActivityService.CreateTask:input_type -> crm.CreateTaskRequest
-	14, // 43: crm.ActivityService.GetTask:input_type -> crm.GetTaskRequest
-	16, // 44: crm.ActivityService.UpdateTask:input_type -> crm.UpdateTaskRequest
-	18, // 45: crm.ActivityService.DeleteTask:input_type -> crm.DeleteTaskRequest
-	20, // 46: crm.ActivityService.ListTasks:input_type -> crm.ListTasksRequest
+	12, // 42: crm.TaskService.CreateTask:input_type -> crm.CreateTaskRequest
+	14, // 43: crm.TaskService.GetTask:input_type -> crm.GetTaskRequest
+	16, // 44: crm.TaskService.UpdateTask:input_type -> crm.UpdateTaskRequest
+	18, // 45: crm.TaskService.DeleteTask:input_type -> crm.DeleteTaskRequest
+	20, // 46: crm.TaskService.ListTasks:input_type -> crm.ListTasksRequest
 	23, // 47: crm.ContactService.CreateContact:input_type -> crm.CreateContactRequest
 	25, // 48: crm.ContactService.GetContact:input_type -> crm.GetContactRequest
 	27, // 49: crm.ContactService.UpdateContact:input_type -> crm.UpdateContactRequest
@@ -4132,11 +4133,11 @@ var file_api_proto_crm_proto_depIdxs = []int32{
 	6,  // 70: crm.ActivityService.UpdateActivity:output_type -> crm.UpdateActivityResponse
 	8,  // 71: crm.ActivityService.DeleteActivity:output_type -> crm.DeleteActivityResponse
 	10, // 72: crm.ActivityService.ListActivities:output_type -> crm.ListActivitiesResponse
-	13, // 73: crm.ActivityService.CreateTask:output_type -> crm.CreateTaskResponse
-	15, // 74: crm.ActivityService.GetTask:output_type -> crm.GetTaskResponse
-	17, // 75: crm.ActivityService.UpdateTask:output_type -> crm.UpdateTaskResponse
-	19, // 76: crm.ActivityService.DeleteTask:output_type -> crm.DeleteTaskResponse
-	21, // 77: crm.ActivityService.ListTasks:output_type -> crm.ListTasksResponse
+	13, // 73: crm.TaskService.CreateTask:output_type -> crm.CreateTaskResponse
+	15, // 74: crm.TaskService.GetTask:output_type -> crm.GetTaskResponse
+	17, // 75: crm.TaskService.UpdateTask:output_type -> crm.UpdateTaskResponse
+	19, // 76: crm.TaskService.DeleteTask:output_type -> crm.DeleteTaskResponse
+	21, // 77: crm.TaskService.ListTasks:output_type -> crm.ListTasksResponse
 	24, // 78: crm.ContactService.CreateContact:output_type -> crm.CreateContactResponse
 	26, // 79: crm.ContactService.GetContact:output_type -> crm.GetContactResponse
 	28, // 80: crm.ContactService.UpdateContact:output_type -> crm.UpdateContactResponse
@@ -4179,7 +4180,7 @@ func file_api_proto_crm_proto_init() {
 			NumEnums:      0,
 			NumMessages:   68,
 			NumExtensions: 0,
-			NumServices:   5,
+			NumServices:   6,
 		},
 		GoTypes:           file_api_proto_crm_proto_goTypes,
 		DependencyIndexes: file_api_proto_crm_proto_depIdxs,

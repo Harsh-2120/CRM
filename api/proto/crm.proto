@@ -11,11 +11,6 @@ service ActivityService {
     rpc UpdateActivity(UpdateActivityRequest) returns (UpdateActivityResponse);
     rpc DeleteActivity(DeleteActivityRequest) returns (DeleteActivityResponse);
     rpc ListActivities(ListActivitiesRequest) returns (ListActivitiesResponse);
-    rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
-    rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
-    rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
-    rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
-    rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
 }
 
 // Activity Messages
@@ -73,6 +68,14 @@ message ListActivitiesRequest {
 
 message ListActivitiesResponse {
     repeated Activity activities = 1;
+}
+
+service TaskService {
+    rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+    rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+    rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+    rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+    rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
 }
 
 // Task Messages
