@@ -1,0 +1,416 @@
+syntax = "proto3";
+
+package crm;
+
+option go_package = "CRM/api/pb;pb";
+
+// Activity Service Definition
+service ActivityService {
+    rpc CreateActivity(CreateActivityRequest) returns (CreateActivityResponse);
+    rpc GetActivity(GetActivityRequest) returns (GetActivityResponse);
+    rpc UpdateActivity(UpdateActivityRequest) returns (UpdateActivityResponse);
+    rpc DeleteActivity(DeleteActivityRequest) returns (DeleteActivityResponse);
+    rpc ListActivities(ListActivitiesRequest) returns (ListActivitiesResponse);
+    rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+    rpc GetTask(GetTaskRequest) returns (GetTaskResponse);
+    rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+    rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+    rpc ListTasks(ListTasksRequest) returns (ListTasksResponse);
+}
+
+// Activity Messages
+message Activity {
+    uint32 id = 1;
+    string title = 2;
+    string description = 3;
+    string type = 4;
+    string status = 5;
+    string due_date = 6;
+    string created_at = 7;
+    string updated_at = 8;
+    uint32 contact_id = 9;
+}
+
+message CreateActivityRequest {
+    Activity activity = 1;
+}
+
+message CreateActivityResponse {
+    Activity activity = 1;
+}
+
+message GetActivityRequest {
+    uint32 id = 1;
+}
+
+message GetActivityResponse {
+    Activity activity = 1;
+}
+
+message UpdateActivityRequest {
+    Activity activity = 1;
+}
+
+message UpdateActivityResponse {
+    Activity activity = 1;
+}
+
+message DeleteActivityRequest {
+    uint32 id = 1;
+}
+
+message DeleteActivityResponse {
+    bool success = 1;
+}
+
+message ListActivitiesRequest {
+    uint32 page_number = 1;
+    uint32 page_size = 2;
+    string sort_by = 3;
+    bool ascending = 4;
+    uint32 contact_id = 5; // Optional filter by Contact
+}
+
+message ListActivitiesResponse {
+    repeated Activity activities = 1;
+}
+
+// Task Messages
+message Task {
+    uint32 id = 1;
+    string title = 2;
+    string description = 3;
+    string status = 4;
+    string priority = 5;
+    string due_date = 6;
+    string created_at = 7;
+    string updated_at = 8;
+    uint32 activity_id = 9;
+}
+
+message CreateTaskRequest {
+    Task task = 1;
+}
+
+message CreateTaskResponse {
+    Task task = 1;
+}
+
+message GetTaskRequest {
+    uint32 id = 1;
+}
+
+message GetTaskResponse {
+    Task task = 1;
+}
+
+message UpdateTaskRequest {
+    Task task = 1;
+}
+
+message UpdateTaskResponse {
+    Task task = 1;
+}
+
+message DeleteTaskRequest {
+    uint32 id = 1;
+}
+
+message DeleteTaskResponse {
+    bool success = 1;
+}
+
+message ListTasksRequest {
+    uint32 page_number = 1;
+    uint32 page_size = 2;
+    string sort_by = 3;
+    bool ascending = 4;
+    uint32 activity_id = 5; // Optional filter by Activity
+}
+
+message ListTasksResponse {
+    repeated Task tasks = 1;
+}
+
+// -------------------- Contact Service --------------------
+service ContactService {
+  rpc CreateContact(CreateContactRequest) returns (CreateContactResponse);
+  rpc GetContact(GetContactRequest) returns (GetContactResponse);
+  rpc UpdateContact(UpdateContactRequest) returns (UpdateContactResponse);
+  rpc DeleteContact(DeleteContactRequest) returns (DeleteContactResponse);
+  rpc ListContacts(ListContactsRequest) returns (ListContactsResponse);
+}
+
+// -------------------- Contact Messages --------------------
+message Contact {
+    uint32 id = 1;
+    string contact_type = 2; // "individual" or "company"
+    string first_name = 3;
+    string last_name = 4;
+    string email = 5;
+    string phone = 6;
+    string address = 7;
+    string city = 8;
+    string state = 9;
+    string country = 10;
+    string zip_code = 11;
+    optional uint32 company_id = 12;        // Link to CRM company if applicable
+    string company_name = 13;               // Used for unregistered/individuals
+    string position = 14;
+    string social_media_profiles = 15;
+    string notes = 16;
+    uint32 taxation_detail_id = 17;         // Optional
+    string created_at = 18;
+    string updated_at = 19;
+}
+  
+
+message CreateContactRequest {
+  Contact contact = 1;
+}
+
+message CreateContactResponse {
+  Contact contact = 1;
+}
+
+message GetContactRequest {
+  uint32 id = 1;
+}
+
+message GetContactResponse {
+  Contact contact = 1;
+}
+
+message UpdateContactRequest {
+  Contact contact = 1;
+}
+
+message UpdateContactResponse {
+  Contact contact = 1;
+}
+
+message DeleteContactRequest {
+  uint32 id = 1;
+}
+
+message DeleteContactResponse {
+  bool success = 1;
+}
+
+message ListContactsRequest {
+  uint32 page_number = 1;
+  uint32 page_size = 2;
+  string sort_by = 3;
+  bool ascending = 4;
+}
+
+message ListContactsResponse {
+  repeated Contact contacts = 1;
+}
+
+// -------------------- Company Service --------------------
+service CompanyService {
+  rpc CreateCompany(CreateCompanyRequest) returns (CreateCompanyResponse);
+  rpc GetCompany(GetCompanyRequest) returns (GetCompanyResponse);
+  rpc UpdateCompany(UpdateCompanyRequest) returns (UpdateCompanyResponse);
+  rpc DeleteCompany(DeleteCompanyRequest) returns (DeleteCompanyResponse);
+  rpc ListCompanies(ListCompaniesRequest) returns (ListCompaniesResponse);
+}
+
+// -------------------- Company Messages --------------------
+message Company {
+  uint32 id = 1;
+  string name = 2;
+  string industry = 3;
+  string website = 4;
+  string phone = 5;
+  string email = 6;
+  string address = 7;
+  string city = 8;
+  string state = 9;
+  string country = 10;
+  string zip_code = 11;
+  uint32 created_by = 12;
+  uint32 organization_id = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+message CreateCompanyRequest {
+  Company company = 1;
+}
+
+message CreateCompanyResponse {
+  Company company = 1;
+}
+
+message GetCompanyRequest {
+  uint32 id = 1;
+}
+
+message GetCompanyResponse {
+  Company company = 1;
+}
+
+message UpdateCompanyRequest {
+  Company company = 1;
+}
+
+message UpdateCompanyResponse {
+  Company company = 1;
+}
+
+message DeleteCompanyRequest {
+  uint32 id = 1;
+}
+
+message DeleteCompanyResponse {
+  bool success = 1;
+}
+
+message ListCompaniesRequest {
+  uint32 organization_id = 1; // Filter by current user’s org
+  uint32 page_number = 2;
+  uint32 page_size = 3;
+  string sort_by = 4;
+  bool ascending = 5;
+}
+
+message ListCompaniesResponse {
+  repeated Company companies = 1;
+}
+
+// -------------------- Leads Service --------------------
+
+service LeadService {
+    rpc CreateLead (CreateLeadRequest) returns (CreateLeadResponse);
+    rpc GetLead (GetLeadRequest) returns (GetLeadResponse);
+    rpc UpdateLead (UpdateLeadRequest) returns (UpdateLeadResponse);
+    rpc DeleteLead (DeleteLeadRequest) returns (DeleteLeadResponse);
+    rpc GetAllLeads (GetAllLeadsRequest) returns (GetAllLeadsResponse); // New method for retrieving all leads
+    rpc GetLeadByEmail (GetLeadByEmailRequest) returns (GetLeadByEmailResponse); // New method for retrieving a lead by email
+}
+
+message Lead {
+    uint32 id = 1;
+    string first_name = 2;
+    string last_name = 3;
+    string email = 4;
+    string phone = 5;
+    string status = 6;
+    uint32 assigned_to = 7;
+    uint32 organization_id = 8;
+    string created_at=9;
+    string updated_at=10;
+}
+
+message CreateLeadRequest {
+    Lead lead = 1;
+}
+
+message CreateLeadResponse {
+    Lead lead = 1;
+}
+
+message GetLeadRequest {
+    uint32 id = 1;
+}
+
+message GetLeadResponse {
+    Lead lead = 1;
+}
+
+message UpdateLeadRequest {
+    Lead lead = 1;
+}
+
+message UpdateLeadResponse {
+    Lead lead = 1;
+}
+
+message DeleteLeadRequest {
+    uint32 id = 1;
+}
+
+message DeleteLeadResponse {
+    bool success = 1;
+}
+
+message GetAllLeadsRequest {}
+
+message GetAllLeadsResponse {
+    repeated Lead leads = 1;
+}
+
+message GetLeadByEmailRequest {
+    string email = 1;
+}
+
+message GetLeadByEmailResponse {
+    Lead lead = 1;
+}
+
+// -------------------- Opportunity Service --------------------
+
+service OpportunityService {
+    rpc CreateOpportunity (CreateOpportunityRequest) returns (CreateOpportunityResponse);
+    rpc GetOpportunity (GetOpportunityRequest) returns (GetOpportunityResponse);
+    rpc UpdateOpportunity (UpdateOpportunityRequest) returns (UpdateOpportunityResponse);
+    rpc DeleteOpportunity (DeleteOpportunityRequest) returns (DeleteOpportunityResponse);
+    rpc ListOpportunities (ListOpportunitiesRequest) returns (ListOpportunitiesResponse);
+}
+
+message Opportunity {
+    uint32 id = 1;
+    string name = 2;
+    string description = 3;
+    string stage = 4;
+    double amount = 5;
+    string close_date = 6;
+    double probability = 7;
+    uint32 lead_id = 8;
+    uint32 account_id = 9;
+    uint32 owner_id = 10;
+    string created_at=11;
+    string updated_at=12;
+}
+
+message CreateOpportunityRequest {
+    Opportunity opportunity = 1;
+}
+
+message CreateOpportunityResponse {
+    Opportunity opportunity = 1;
+}
+
+message GetOpportunityRequest {
+    uint32 id = 1;
+}
+
+message GetOpportunityResponse {
+    Opportunity opportunity = 1;
+}
+
+message UpdateOpportunityRequest {
+    Opportunity opportunity = 1;
+}
+
+message UpdateOpportunityResponse {
+    Opportunity opportunity = 1;
+}
+
+message DeleteOpportunityRequest {
+    uint32 id = 1;
+}
+
+message DeleteOpportunityResponse {
+    bool success = 1;
+}
+
+message ListOpportunitiesRequest {
+    uint32 owner_id = 1; // Optional filter
+}
+
+message ListOpportunitiesResponse {
+    repeated Opportunity opportunities = 1;
+}
