@@ -22,7 +22,7 @@ func NewLeadHandler(service services.LeadService, wsServer *websockets.Server) *
 	return &LeadHandler{leadService: service, wsServer: wsServer}
 }
 
-func (h *LeadHandler) CreateLead(ctx context.Context, req *leadspb.CreateLeadRequest) (*leadspb.CreateLeadResponse, error) {
+func (h *LeadHandler) CreateLead(ctx context.Context, req *pb.CreateLeadRequest) (*pb.CreateLeadResponse, error) {
 	log.Printf("Received CreateLead request: %+v", req)
 
 	// Convert the protobuf Lead to the internal model Lead
@@ -49,7 +49,7 @@ func (h *LeadHandler) CreateLead(ctx context.Context, req *leadspb.CreateLeadReq
 		return nil, status.Error(codes.Internal, "Failed to convert lead")
 	}
 
-	response := &leadspb.CreateLeadResponse{
+	response := &pb.CreateLeadResponse{
 		Lead: protoLead,
 	}
 
@@ -57,17 +57,17 @@ func (h *LeadHandler) CreateLead(ctx context.Context, req *leadspb.CreateLeadReq
 	return response, nil
 }
 
-func (h *LeadHandler) GetLead(ctx context.Context, req *leadspb.GetLeadRequest) (*leadspb.GetLeadResponse, error) {
+func (h *LeadHandler) GetLead(ctx context.Context, req *pb.GetLeadRequest) (*pb.GetLeadResponse, error) {
 	lead, err := h.leadService.GetLead(uint(req.Id))
 	if err != nil {
 		return nil, err
 	}
-	return &leadspb.GetLeadResponse{
+	return &pb.GetLeadResponse{
 		Lead: ConvertModelToProtoLead(lead),
 	}, nil
 }
 
-func (h *LeadHandler) UpdateLead(ctx context.Context, req *leadspb.UpdateLeadRequest) (*leadspb.UpdateLeadResponse, error) {
+func (h *LeadHandler) UpdateLead(ctx context.Context, req *pb.UpdateLeadRequest) (*pb.UpdateLeadResponse, error) {
 	// Convert the protobuf Lead to the internal model Lead
 	lead := ConvertProtoToModelLead(req.Lead)
 
@@ -78,40 +78,40 @@ func (h *LeadHandler) UpdateLead(ctx context.Context, req *leadspb.UpdateLeadReq
 	}
 
 	// Convert the internal model Lead back to the protobuf Lead
-	return &leadspb.UpdateLeadResponse{
+	return &pb.UpdateLeadResponse{
 		Lead: ConvertModelToProtoLead(updatedLead),
 	}, nil
 }
 
-func (h *LeadHandler) DeleteLead(ctx context.Context, req *leadspb.DeleteLeadRequest) (*leadspb.DeleteLeadResponse, error) {
+func (h *LeadHandler) DeleteLead(ctx context.Context, req *pb.DeleteLeadRequest) (*pb.DeleteLeadResponse, error) {
 	err := h.leadService.DeleteLead(uint(req.Id))
 	if err != nil {
 		return nil, err
 	}
-	return &leadspb.DeleteLeadResponse{Success: true}, nil
+	return &pb.DeleteLeadResponse{Success: true}, nil
 }
 
-func (h *LeadHandler) GetAllLeads(ctx context.Context, req *leadspb.GetAllLeadsRequest) (*leadspb.GetAllLeadsResponse, error) {
+func (h *LeadHandler) GetAllLeads(ctx context.Context, req *pb.GetAllLeadsRequest) (*pb.GetAllLeadsResponse, error) {
 	leads, err := h.leadService.GetAllLeads()
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert the list of model Leads to protobuf Leads
-	var protoLeads []*leadspb.Lead
+	var protoLeads []*pb.Lead
 	for _, lead := range leads {
 		protoLeads = append(protoLeads, ConvertModelToProtoLead(&lead))
 	}
 
-	return &leadspb.GetAllLeadsResponse{Leads: protoLeads}, nil
+	return &pb.GetAllLeadsResponse{Leads: protoLeads}, nil
 }
 
-func (h *LeadHandler) GetLeadByEmail(ctx context.Context, req *leadspb.GetLeadByEmailRequest) (*leadspb.GetLeadByEmailResponse, error) {
+func (h *LeadHandler) GetLeadByEmail(ctx context.Context, req *pb.GetLeadByEmailRequest) (*pb.GetLeadByEmailResponse, error) {
 	lead, err := h.leadService.GetLeadByEmail(req.Email)
 	if err != nil {
 		return nil, err
 	}
-	return &leadspb.GetLeadByEmailResponse{
+	return &pb.GetLeadByEmailResponse{
 		Lead: ConvertModelToProtoLead(lead),
 	}, nil
 }
