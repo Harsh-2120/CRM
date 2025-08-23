@@ -1,0 +1,9 @@
+version: "2"
+sql:
+  - engine: "postgresql"   # or mysql if you’re using that
+    schema: "internal/adapters/database/migration"
+    queries: "internal/adapters/database/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/adapters/database/db"
