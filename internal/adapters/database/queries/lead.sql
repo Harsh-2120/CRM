@@ -3,10 +3,13 @@ INSERT INTO leads (first_name, last_name, email, phone, status, assigned_to, org
 VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
--- name: GetLead :one
+-- name: GetLeadById :one
 SELECT * FROM leads WHERE id = $1;
 
--- name: ListLeads :many
+--name: GetLeadByEmail :one
+select * from leads WHERE email = $1;
+
+-- name: GetAllLeads :many
 SELECT * FROM leads
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;

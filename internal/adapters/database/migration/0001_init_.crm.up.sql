@@ -12,7 +12,7 @@ CREATE TABLE companies (
     country VARCHAR(100),
     zipcode VARCHAR(20),
     created_by INT,
-    organization_id INT,
+    organization_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

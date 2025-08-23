@@ -33,7 +33,7 @@ type Company struct {
 	Country        sql.NullString
 	Zipcode        sql.NullString
 	CreatedBy      sql.NullInt32
-	OrganizationID sql.NullInt32
+	OrganizationID int32
 	CreatedAt      sql.NullTime
 	UpdatedAt      sql.NullTime
 }

@@ -8,9 +8,11 @@ RETURNING *;
 SELECT * FROM companies WHERE id = $1;
 
 -- name: ListCompanies :many
-SELECT * FROM companies
+SELECT *
+FROM companies
+WHERE organization_id = $1
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2;
+LIMIT $2 OFFSET $3;
 
 -- name: UpdateCompany :one
 UPDATE companies

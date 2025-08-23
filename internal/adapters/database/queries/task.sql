@@ -7,9 +7,13 @@ RETURNING *;
 SELECT * FROM tasks WHERE id = $1;
 
 -- name: ListTasks :many
-SELECT * FROM tasks
+
+SELECT *
+FROM tasks
+WHERE activity_id = $1
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2;
+LIMIT $2 OFFSET $3;
+
 
 -- name: UpdateTask :one
 UPDATE tasks

@@ -80,18 +80,22 @@ func (q *Queries) GetTask(ctx context.Context, id int32) (Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-SELECT id, title, description, status, priority, due_date, activity_id, created_at, updated_at FROM tasks
+
+SELECT id, title, description, status, priority, due_date, activity_id, created_at, updated_at
+FROM tasks
+WHERE activity_id = $1
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $2 OFFSET $3
 `
 
 type ListTasksParams struct {
-	Limit  int32
-	Offset int32
+	ActivityID int32
+	Limit      int32
+	Offset     int32
 }
 
 func (q *Queries) ListTasks(ctx context.Context, arg ListTasksParams) ([]Task, error) {
-	rows, err := q.db.QueryContext(ctx, listTasks, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listTasks, arg.ActivityID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}

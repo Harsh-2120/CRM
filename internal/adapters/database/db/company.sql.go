@@ -29,7 +29,7 @@ type CreateCompanyParams struct {
 	Country        sql.NullString
 	Zipcode        sql.NullString
 	CreatedBy      sql.NullInt32
-	OrganizationID sql.NullInt32
+	OrganizationID int32
 }
 
 func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error) {
@@ -105,18 +105,21 @@ func (q *Queries) GetCompany(ctx context.Context, id int32) (Company, error) {
 }
 
 const listCompanies = `-- name: ListCompanies :many
-SELECT id, name, industry, website, phone, email, address, city, state, country, zipcode, created_by, organization_id, created_at, updated_at FROM companies
+SELECT id, name, industry, website, phone, email, address, city, state, country, zipcode, created_by, organization_id, created_at, updated_at
+FROM companies
+WHERE organization_id = $1
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $2 OFFSET $3
 `
 
 type ListCompaniesParams struct {
-	Limit  int32
-	Offset int32
+	OrganizationID int32
+	Limit          int32
+	Offset         int32
 }
 
 func (q *Queries) ListCompanies(ctx context.Context, arg ListCompaniesParams) ([]Company, error) {
-	rows, err := q.db.QueryContext(ctx, listCompanies, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listCompanies, arg.OrganizationID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
