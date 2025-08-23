@@ -18,7 +18,7 @@ type LeadRepository interface {
 	GetByEmail(ctx context.Context, email string) (db.Lead, error)
 	Update(ctx context.Context, arg db.UpdateLeadParams) (db.Lead, error)
 	Delete(ctx context.Context, id int32) error
-	GetAll(ctx context.Context) ([]db.Lead, error)
+	GetAll(ctx context.Context, limit int32, offset int32) ([]db.Lead, error)
 }
 
 type leadRepository struct {
@@ -36,7 +36,7 @@ func (r *leadRepository) Create(ctx context.Context, arg db.CreateLeadParams) (d
 }
 
 func (r *leadRepository) GetByID(ctx context.Context, id int32) (db.Lead, error) {
-	lead, err := r.q.GetLead(ctx, id)
+	lead, err := r.q.GetLeadById(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return db.Lead{}, ErrLeadNotFound
@@ -79,6 +79,14 @@ func (r *leadRepository) Delete(ctx context.Context, id int32) error {
 	return nil
 }
 
-func (r *leadRepository) GetAll(ctx context.Context) ([]db.Lead, error) {
-	return r.q.ListLeads(ctx)
+// func (r *leadRepository) GetAll(ctx context.Context) ([]db.Lead, error) {
+// 	return r.q.GetAll(ctx)
+// }
+
+func (r *leadRepository) GetAll(ctx context.Context, limit, offset int32) ([]db.Lead, error) {
+	params := db.GetAllParams{
+		Limit:  limit,
+		Offset: offset,
+	}
+	return r.q.GetAll(ctx, params)
 }

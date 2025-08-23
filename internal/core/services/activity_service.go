@@ -2,195 +2,141 @@ package services
 
 import (
 	"context"
-	"crm/internal/core/domain/models"
-	"crm/internal/core/repository"
+	"crm/internal/adapters/database/db" // <-- sqlc generated package
+	"database/sql"
 	"errors"
-	"log"
+	"fmt"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
 var (
 	ErrActivityNotFound    = errors.New("activity not found")
 	ErrInvalidActivityData = errors.New("invalid activity data")
-	ErrActivityExists      = errors.New("activity with this title already exists")
 )
 
-// ActivityService defines the methods for activity and task management.
 type ActivityService interface {
-	CreateActivity(ctx context.Context, activity *models.Activity) (*models.Activity, error)
-	GetActivity(id uint) (*models.Activity, error)
-	UpdateActivity(activity *models.Activity) (*models.Activity, error)
-	DeleteActivity(id uint) error
-	ListActivities(pageNumber, pageSize uint, sortBy string, ascending bool, contactID uint) ([]models.Activity, error)
-	GetActivityByID(id uint) (*models.Activity, error)
+	CreateActivity(ctx context.Context, activity *db.CreateActivityParams) (*db.Activity, error)
+	GetActivity(ctx context.Context, id int32) (*db.Activity, error)
+	UpdateActivity(ctx context.Context, params db.UpdateActivityParams) (*db.Activity, error)
+	DeleteActivity(ctx context.Context, id int32) error
+	ListActivities(ctx context.Context, pageNumber, pageSize uint) ([]db.Activity, error)
 }
 
 type activityService struct {
-	repo repository.ActivityRepository
+	queries *db.Queries
+	kafka   *kafka.Writer
 }
 
-func NewActivityService(repo repository.ActivityRepository) ActivityService {
-	return &activityService{repo: repo}
-}
-
-// GetActivityByID implements ActivityService.
-func (s *activityService) GetActivityByID(id uint) (*models.Activity, error) {
-	activity, err := s.repo.GetActivityByID(id)
-	if err != nil {
-		if errors.Is(err, repository.ErrActivityNotFound) {
-			return nil, ErrActivityNotFound
-		}
-		return nil, err
-	}
-	return activity, nil
+func NewActivityService(queries *db.Queries, kafkaWriter *kafka.Writer) ActivityService {
+	return &activityService{queries: queries, kafka: kafkaWriter}
 }
 
 // CreateActivity validates and creates a new activity.
-func (s *activityService) CreateActivity(ctx context.Context, activity *models.Activity) (*models.Activity, error) {
-	// Validate required fields
+func (s *activityService) CreateActivity(ctx context.Context, activity *db.CreateActivityParams) (*db.Activity, error) {
 	if activity.Title == "" || activity.Type == "" || activity.Status == "" || activity.ContactID == 0 {
 		return nil, ErrInvalidActivityData
 	}
 
-	// Validate ActivityStatus using constants or enums
-	validStatuses := map[string]bool{
-		"Pending":    true,
-		"InProgress": true,
-		"Completed":  true,
-		"Canceled":   true,
-		"Scheduled":  true, // Include if 'Scheduled' is a valid status
-	}
-
-	if !validStatuses[activity.Status] {
-		return nil, errors.New("invalid activity status")
-	}
-
-	// Set timestamps
-	now := time.Now()
-	activity.CreatedAt = now
-	activity.UpdatedAt = now
-
-	// Attempt to create the activity
-	createdActivity, err := s.repo.CreateActivity(ctx, activity)
-	if err != nil {
-		if errors.Is(err, repository.ErrActivityExists) {
-			return nil, ErrActivityExists
+	// If due_date is not set, assign default
+	if !activity.DueDate.Valid {
+		activity.DueDate = sql.NullTime{
+			Time:  time.Now().Add(24 * time.Hour),
+			Valid: true,
 		}
+	}
+
+	createdActivity, err := s.queries.CreateActivity(ctx, *activity)
+	if err != nil {
 		return nil, err
 	}
 
-	return createdActivity, nil
+	// Publish Kafka Event
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("activity_created"),
+		Value: []byte(createdActivity.Title),
+	})
+
+	return &createdActivity, nil
 }
 
 // GetActivity retrieves an activity by Id.
-func (s *activityService) GetActivity(id uint) (*models.Activity, error) {
-	activity, err := s.repo.GetActivityByID(id)
+func (s *activityService) GetActivity(ctx context.Context, id int32) (*db.Activity, error) {
+	activity, err := s.queries.GetActivity(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrActivityNotFound) {
-			return nil, ErrActivityNotFound
-		}
-		return nil, err
+		return nil, ErrActivityNotFound
 	}
-	return activity, nil
+	return &activity, nil
 }
 
 // UpdateActivity validates and updates an existing activity.
-func (s *activityService) UpdateActivity(activity *models.Activity) (*models.Activity, error) {
-	// Validate activity Id
-	if activity.Id == 0 {
+func (s *activityService) UpdateActivity(ctx context.Context, params db.UpdateActivityParams) (*db.Activity, error) {
+	if params.ID == 0 {
 		return nil, ErrInvalidActivityData
 	}
 
-	// Validate Type and Status if provided
-	if activity.Type != "" {
-		validTypes := map[string]bool{
-			"Call":    true,
-			"Meeting": true,
-			"Email":   true,
-		}
-		if !validTypes[activity.Type] {
-			return nil, errors.New("invalid activity type")
-		}
-	}
-
-	if activity.Status != "" {
+	if params.Status != "" {
 		validStatuses := map[string]bool{
 			"Pending":   true,
 			"Completed": true,
 			"Canceled":  true,
 		}
-		if !validStatuses[activity.Status] {
+		if !validStatuses[params.Status] {
 			return nil, errors.New("invalid activity status")
 		}
 	}
 
-	// Validate DueDate if provided
-	if !activity.DueDate.IsZero() && activity.DueDate.Before(time.Now()) {
-		return nil, errors.New("due date cannot be in the past")
+	// If due date is provided, validate it
+	if params.DueDate.Valid {
+		if params.DueDate.Time.Before(time.Now()) {
+			return nil, errors.New("due date cannot be in the past")
+		}
 	}
 
-	// Set the UpdatedAt timestamp
-	activity.UpdatedAt = time.Now()
-
-	// Update the activity
-	log.Printf("serice is clear on new value %v", activity)
-
-	updatedActivity, err := s.repo.UpdateActivity(activity)
+	updatedActivity, err := s.queries.UpdateActivity(ctx, params)
 	if err != nil {
-		if errors.Is(err, repository.ErrActivityNotFound) {
-			return nil, ErrActivityNotFound
-		}
-		if errors.Is(err, repository.ErrActivityExists) {
-			return nil, ErrActivityExists
-		}
 		return nil, err
 	}
 
-	return updatedActivity, nil
+	// Publish Kafka Event
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("activity_updated"),
+		Value: []byte(updatedActivity.Title),
+	})
+
+	return &updatedActivity, nil
 }
 
 // DeleteActivity removes an activity by Id.
-func (s *activityService) DeleteActivity(id uint) error {
-	// Check if the activity exists
-	_, err := s.repo.GetActivityByID(id)
+func (s *activityService) DeleteActivity(ctx context.Context, id int32) error {
+	err := s.queries.DeleteActivity(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrActivityNotFound) {
-			return ErrActivityNotFound
-		}
-		return err
+		return ErrActivityNotFound
 	}
 
-	// Delete the activity
-	if err := s.repo.DeleteActivity(id); err != nil {
-		return err
-	}
+	// Publish Kafka Event (convert id properly to string)
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("activity_deleted"),
+		Value: []byte(fmt.Sprintf("%d", id)),
+	})
 	return nil
 }
 
-// ListActivities retrieves activities with pagination, sorting, and optional filtering by contact.
-func (s *activityService) ListActivities(pageNumber uint, pageSize uint, sortBy string, ascending bool, contactID uint) ([]models.Activity, error) {
-	// Validate pagination parameters
+// ListActivities retrieves activities with pagination.
+func (s *activityService) ListActivities(ctx context.Context, pageNumber, pageSize uint) ([]db.Activity, error) {
 	if pageNumber == 0 {
 		pageNumber = 1
 	}
 	if pageSize == 0 {
 		pageSize = 10
 	}
+	offset := (pageNumber - 1) * pageSize
 
-	// Validate sortBy field
-	validSortFields := map[string]bool{
-		"title":      true,
-		"due_date":   true,
-		"created_at": true,
-		"updated_at": true,
-		"type":       true,
-		"status":     true,
-	}
-	if sortBy != "" && !validSortFields[sortBy] {
-		return nil, errors.New("invalid sort field")
-	}
-
-	activities, err := s.repo.ListActivities(pageNumber, pageSize, sortBy, ascending, contactID)
+	activities, err := s.queries.ListActivities(ctx, db.ListActivitiesParams{
+		Limit:  int32(pageSize),
+		Offset: int32(offset),
+	})
 	if err != nil {
 		return nil, err
 	}

@@ -6,10 +6,10 @@ RETURNING *;
 -- name: GetLeadById :one
 SELECT * FROM leads WHERE id = $1;
 
---name: GetLeadByEmail :one
-select * from leads WHERE email = $1;
+-- name: GetLeadByEmail :one
+SELECT * FROM leads WHERE email = $1 LIMIT 1;
 
--- name: GetAllLeads :many
+-- name: GetAll :many
 SELECT * FROM leads
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;

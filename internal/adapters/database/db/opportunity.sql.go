@@ -68,7 +68,7 @@ func (q *Queries) DeleteOpportunity(ctx context.Context, id int32) error {
 }
 
 const getOpportunity = `-- name: GetOpportunity :one
-SELECT id, name, description, stage, amount, close_date, probability, lead_id, account_id, owner_id, created_at, updated_at FROM opportunities WHERE id = $1
+SELECT id, name, description, stage, amount, close_date, probability, lead_id, account_id, owner_id, created_at, updated_at FROM opportunities WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetOpportunity(ctx context.Context, id int32) (Opportunity, error) {
@@ -92,18 +92,14 @@ func (q *Queries) GetOpportunity(ctx context.Context, id int32) (Opportunity, er
 }
 
 const listOpportunities = `-- name: ListOpportunities :many
-SELECT id, name, description, stage, amount, close_date, probability, lead_id, account_id, owner_id, created_at, updated_at FROM opportunities
+SELECT id, name, description, stage, amount, close_date, probability, lead_id, account_id, owner_id, created_at, updated_at
+FROM opportunities
+WHERE ($1::int = 0 OR owner_id = $1)
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
 `
 
-type ListOpportunitiesParams struct {
-	Limit  int32
-	Offset int32
-}
-
-func (q *Queries) ListOpportunities(ctx context.Context, arg ListOpportunitiesParams) ([]Opportunity, error) {
-	rows, err := q.db.QueryContext(ctx, listOpportunities, arg.Limit, arg.Offset)
+func (q *Queries) ListOpportunities(ctx context.Context, dollar_1 int32) ([]Opportunity, error) {
+	rows, err := q.db.QueryContext(ctx, listOpportunities, dollar_1)
 	if err != nil {
 		return nil, err
 	}

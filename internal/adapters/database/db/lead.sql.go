@@ -61,41 +61,19 @@ func (q *Queries) DeleteLead(ctx context.Context, id int32) error {
 	return err
 }
 
-const getLead = `-- name: GetLead :one
-SELECT id, first_name, last_name, email, phone, status, assigned_to, organization_id, created_at, updated_at FROM leads WHERE id = $1
-`
-
-func (q *Queries) GetLead(ctx context.Context, id int32) (Lead, error) {
-	row := q.db.QueryRowContext(ctx, getLead, id)
-	var i Lead
-	err := row.Scan(
-		&i.ID,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.Phone,
-		&i.Status,
-		&i.AssignedTo,
-		&i.OrganizationID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const listLeads = `-- name: ListLeads :many
+const getAll = `-- name: GetAll :many
 SELECT id, first_name, last_name, email, phone, status, assigned_to, organization_id, created_at, updated_at FROM leads
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
 
-type ListLeadsParams struct {
+type GetAllParams struct {
 	Limit  int32
 	Offset int32
 }
 
-func (q *Queries) ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, error) {
-	rows, err := q.db.QueryContext(ctx, listLeads, arg.Limit, arg.Offset)
+func (q *Queries) GetAll(ctx context.Context, arg GetAllParams) ([]Lead, error) {
+	rows, err := q.db.QueryContext(ctx, getAll, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -126,6 +104,50 @@ func (q *Queries) ListLeads(ctx context.Context, arg ListLeadsParams) ([]Lead, e
 		return nil, err
 	}
 	return items, nil
+}
+
+const getLeadByEmail = `-- name: GetLeadByEmail :one
+SELECT id, first_name, last_name, email, phone, status, assigned_to, organization_id, created_at, updated_at FROM leads WHERE email = $1 LIMIT 1
+`
+
+func (q *Queries) GetLeadByEmail(ctx context.Context, email string) (Lead, error) {
+	row := q.db.QueryRowContext(ctx, getLeadByEmail, email)
+	var i Lead
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.Status,
+		&i.AssignedTo,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getLeadById = `-- name: GetLeadById :one
+SELECT id, first_name, last_name, email, phone, status, assigned_to, organization_id, created_at, updated_at FROM leads WHERE id = $1
+`
+
+func (q *Queries) GetLeadById(ctx context.Context, id int32) (Lead, error) {
+	row := q.db.QueryRowContext(ctx, getLeadById, id)
+	var i Lead
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.Status,
+		&i.AssignedTo,
+		&i.OrganizationID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const updateLead = `-- name: UpdateLead :one
