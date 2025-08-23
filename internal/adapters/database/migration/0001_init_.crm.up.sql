@@ -17,16 +17,6 @@ CREATE TABLE companies (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Taxation Details
-CREATE TABLE taxation_details (
-    id SERIAL PRIMARY KEY,
-    country VARCHAR(100) NOT NULL,
-    tax_type VARCHAR(50) NOT NULL,
-    rate NUMERIC(5,2) NOT NULL,
-    description TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
 
 -- Contacts
 CREATE TABLE contacts (

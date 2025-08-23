@@ -2,6 +2,5 @@ DROP TABLE IF EXISTS opportunities;
 DROP TABLE IF EXISTS leads;
 DROP TABLE IF EXISTS contacts;
 DROP TABLE IF EXISTS companies;
-DROP TABLE IF EXISTS taxation_details;
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS activities;

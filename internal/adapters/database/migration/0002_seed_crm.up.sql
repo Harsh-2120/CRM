@@ -4,12 +4,6 @@ VALUES
 ('Acme Corp', 'Manufacturing', 'https://acme.com', '123-456-7890', 'info@acme.com', 'USA'),
 ('Globex Ltd', 'Finance', 'https://globex.com', '987-654-3210', 'contact@globex.com', 'UK');
 
--- Taxation Details
-INSERT INTO taxation_details (country, tax_type, rate, description)
-VALUES 
-('USA', 'VAT', 7.00, 'Standard VAT'),
-('UK', 'GST', 20.00, 'Standard GST');
-
 -- Contacts
 INSERT INTO contacts (contact_type, first_name, last_name, email, phone, company_id, country)
 VALUES

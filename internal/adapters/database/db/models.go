@@ -99,13 +99,3 @@ type Task struct {
 	CreatedAt   sql.NullTime
 	UpdatedAt   sql.NullTime
 }
-
-type TaxationDetail struct {
-	ID          int32
-	Country     string
-	TaxType     string
-	Rate        string
-	Description sql.NullString
-	CreatedAt   sql.NullTime
-	UpdatedAt   sql.NullTime
-}

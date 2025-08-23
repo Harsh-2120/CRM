@@ -14,10 +14,6 @@ WHERE email IN ('john.doe@example.com', 'jane.smith@example.com');
 DELETE FROM companies
 WHERE name IN ('TechCorp', 'InnovateLtd');
 
--- Remove seeded Taxation Details
-DELETE FROM taxation_details
-WHERE country IN ('India', 'USA');
-
 -- Remove seeded Tasks
 DELETE FROM tasks
 WHERE title IN ('Send Proposal', 'Prepare Presentation');
