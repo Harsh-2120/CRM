@@ -172,3 +172,64 @@ func (q *Queries) UpdateOpportunity(ctx context.Context, arg UpdateOpportunityPa
 	)
 	return i, err
 }
+
+const updateOpportunitySelective = `-- name: UpdateOpportunitySelective :one
+UPDATE opportunities
+SET
+  name        = COALESCE($1, name),
+  description = COALESCE($2, description),
+  stage       = COALESCE($3, stage),
+  amount      = COALESCE($4, amount),
+  close_date  = COALESCE($5, close_date),
+  probability = COALESCE($6, probability),
+  lead_id     = COALESCE($7, lead_id),
+  account_id  = COALESCE($8, account_id),
+  owner_id    = COALESCE($9, owner_id),
+  updated_at  = CURRENT_TIMESTAMP
+WHERE id = $10
+RETURNING id, name, description, stage, amount, close_date, probability, lead_id, account_id, owner_id, created_at, updated_at
+`
+
+type UpdateOpportunitySelectiveParams struct {
+	Name        sql.NullString
+	Description sql.NullString
+	Stage       sql.NullString
+	Amount      sql.NullString
+	CloseDate   sql.NullTime
+	Probability sql.NullString
+	LeadID      sql.NullInt32
+	AccountID   sql.NullInt32
+	OwnerID     sql.NullInt32
+	ID          int32
+}
+
+func (q *Queries) UpdateOpportunitySelective(ctx context.Context, arg UpdateOpportunitySelectiveParams) (Opportunity, error) {
+	row := q.db.QueryRowContext(ctx, updateOpportunitySelective,
+		arg.Name,
+		arg.Description,
+		arg.Stage,
+		arg.Amount,
+		arg.CloseDate,
+		arg.Probability,
+		arg.LeadID,
+		arg.AccountID,
+		arg.OwnerID,
+		arg.ID,
+	)
+	var i Opportunity
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Stage,
+		&i.Amount,
+		&i.CloseDate,
+		&i.Probability,
+		&i.LeadID,
+		&i.AccountID,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}

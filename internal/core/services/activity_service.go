@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"crm/internal/adapters/database/db" // <-- sqlc generated package
+	"crm/internal/adapters/database/db"
 	"database/sql"
 	"errors"
 	"fmt"

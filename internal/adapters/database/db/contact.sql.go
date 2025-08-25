@@ -177,8 +177,8 @@ func (q *Queries) ListContacts(ctx context.Context, arg ListContactsParams) ([]C
 
 const updateContact = `-- name: UpdateContact :one
 UPDATE contacts
-SET first_name=$2, last_name=$3, phone=$4, address=$5, city=$6, state=$7, country=$8, zipcode=$9,
-    position=$10, social_media_profiles=$11, notes=$12, updated_at=CURRENT_TIMESTAMP
+SET first_name=$2, last_name=$3, email=$4, phone=$5, address=$6, city=$7, state=$8, country=$9, zipcode=$10,
+    position=$11, social_media_profiles=$12, notes=$13, updated_at=CURRENT_TIMESTAMP
 WHERE id=$1
 RETURNING id, contact_type, first_name, last_name, company_name, company_id, email, phone, address, city, state, country, zipcode, position, social_media_profiles, notes, taxation_detail_id, created_at, updated_at
 `
@@ -187,6 +187,7 @@ type UpdateContactParams struct {
 	ID                  int32
 	FirstName           sql.NullString
 	LastName            sql.NullString
+	Email               string
 	Phone               sql.NullString
 	Address             sql.NullString
 	City                sql.NullString
@@ -203,6 +204,7 @@ func (q *Queries) UpdateContact(ctx context.Context, arg UpdateContactParams) (C
 		arg.ID,
 		arg.FirstName,
 		arg.LastName,
+		arg.Email,
 		arg.Phone,
 		arg.Address,
 		arg.City,

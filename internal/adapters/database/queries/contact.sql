@@ -15,8 +15,8 @@ LIMIT $1 OFFSET $2;
 
 -- name: UpdateContact :one
 UPDATE contacts
-SET first_name=$2, last_name=$3, phone=$4, address=$5, city=$6, state=$7, country=$8, zipcode=$9,
-    position=$10, social_media_profiles=$11, notes=$12, updated_at=CURRENT_TIMESTAMP
+SET first_name=$2, last_name=$3, email=$4, phone=$5, address=$6, city=$7, state=$8, country=$9, zipcode=$10,
+    position=$11, social_media_profiles=$12, notes=$13, updated_at=CURRENT_TIMESTAMP
 WHERE id=$1
 RETURNING *;
 

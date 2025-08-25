@@ -1,10 +1,14 @@
 package services
 
 import (
-	"crm/internal/core/domain/models"
-	"crm/internal/core/repository"
+	"context"
+	"crm/internal/adapters/database/db"
 	"errors"
-	"time"
+	"log"
+	"regexp"
+	"strings"
+
+	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -13,167 +17,134 @@ var (
 	ErrContactExists      = errors.New("contact with this email already exists")
 )
 
-type ContactService interface {
-	CreateContact(contact *models.Contact) (*models.Contact, error)
-	GetContact(id uint) (*models.Contact, error)
-	UpdateContact(contact *models.Contact) (*models.Contact, error)
-	DeleteContact(id uint) error
-	ListContacts(pageNumber uint, pageSize uint, sortBy string, ascending bool) ([]models.Contact, error)
+type ContactServiceInterface interface {
+	CreateContact(ctx context.Context, contact db.CreateContactParams) (*db.Contact, error)
+	GetContact(ctx context.Context, id int32) (*db.Contact, error)
+	UpdateContact(ctx context.Context, contact db.UpdateContactParams) (*db.Contact, error)
+	DeleteContact(ctx context.Context, id int32) error
+	ListContacts(ctx context.Context, pageNumber, pageSize int32) ([]db.Contact, error)
 }
 
-type contactService struct {
-	repo repository.ContactRepository
+type ContactService struct {
+	queries *db.Queries
+	kafka   *kafka.Writer
 }
 
-func NewContactService(repo repository.ContactRepository) ContactService {
-	return &contactService{repo: repo}
+func NewContactService(queries *db.Queries, kafkaWriter *kafka.Writer) *ContactService {
+	return &ContactService{queries: queries, kafka: kafkaWriter}
 }
 
 // CreateContact validates and creates a new unified contact.
 // It ensures that required fields are present based on the ContactType.
-func (s *contactService) CreateContact(contact *models.Contact) (*models.Contact, error) {
-	// Email is always required.
-	if contact.Email == "" {
+func (s *ContactService) CreateContact(ctx context.Context, contact db.CreateContactParams) (*db.Contact, error) {
+	// Email (string, NOT NULL)
+	if strings.TrimSpace(contact.Email) == "" {
 		return nil, ErrInvalidContactData
 	}
-
-	// Validate email format.
 	if !isValidEmail(contact.Email) {
 		return nil, errors.New("invalid email format")
 	}
 
-	// Validate required fields based on contact type.
+	// Validate based on type
 	switch contact.ContactType {
 	case "individual":
-		if contact.FirstName == "" || contact.LastName == "" {
+		// sql.NullString must be checked with .Valid
+		if !contact.FirstName.Valid || !contact.LastName.Valid {
 			return nil, ErrInvalidContactData
 		}
 	case "company":
-		if contact.CompanyName == "" {
+		if !contact.CompanyName.Valid {
 			return nil, ErrInvalidContactData
 		}
 	default:
 		return nil, errors.New("unknown contact type")
 	}
 
-	// Set creation and update timestamps.
-	now := time.Now()
-	contact.CreatedAt = now
-	contact.UpdatedAt = now
-
-	// Attempt to create the contact in the repository.
-	createdContact, err := s.repo.Create(contact)
+	// Insert into DB
+	createdContact, err := s.queries.CreateContact(ctx, contact)
 	if err != nil {
-		if errors.Is(err, repository.ErrContactExists) {
-			return nil, ErrContactExists
-		}
 		return nil, err
 	}
 
-	return createdContact, nil
+	// Kafka event
+	if err := s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("contact_created"),
+		Value: []byte(createdContact.Email), // Email is plain string
+	}); err != nil {
+		log.Printf("failed to write kafka message: %v", err)
+	}
+
+	return &createdContact, nil
 }
 
 // GetContact retrieves a contact by its ID.
-func (s *contactService) GetContact(id uint) (*models.Contact, error) {
-	contact, err := s.repo.GetByID(id)
+func (s *ContactService) GetContact(ctx context.Context, id int32) (*db.Contact, error) {
+	contact, err := s.queries.GetContact(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrContactNotFound) {
-			return nil, ErrContactNotFound
-		}
-		return nil, err
+		return nil, ErrContactNotFound
 	}
-	return contact, nil
+	return &contact, nil
 }
 
 // UpdateContact validates and updates an existing contact.
-func (s *contactService) UpdateContact(contact *models.Contact) (*models.Contact, error) {
-	// Validate that the contact has a valid ID.
+func (s *ContactService) UpdateContact(ctx context.Context, contact db.UpdateContactParams) (*db.Contact, error) {
 	if contact.ID == 0 {
 		return nil, ErrInvalidContactData
 	}
-
-	// Validate email format if an email is provided.
 	if contact.Email != "" && !isValidEmail(contact.Email) {
 		return nil, errors.New("invalid email format")
 	}
 
-	// Validate required fields based on contact type.
-	switch contact.ContactType {
-	case "individual":
-		if contact.FirstName == "" || contact.LastName == "" {
-			return nil, ErrInvalidContactData
-		}
-	case "company":
-		if contact.CompanyName == "" {
-			return nil, ErrInvalidContactData
-		}
-	default:
-		return nil, errors.New("unknown contact type")
-	}
-
-	// Update the updated_at timestamp.
-	contact.UpdatedAt = time.Now()
-
-	// Attempt to update the contact in the repository.
-	updatedContact, err := s.repo.Update(contact)
+	updatedContact, err := s.queries.UpdateContact(ctx, contact)
 	if err != nil {
-		if errors.Is(err, repository.ErrContactNotFound) {
-			return nil, ErrContactNotFound
-		}
-		if errors.Is(err, repository.ErrContactExists) {
-			return nil, ErrContactExists
-		}
-		return nil, err
+		return nil, ErrContactNotFound
 	}
 
-	return updatedContact, nil
+	// Kafka event
+	err = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("contact_updated"),
+		Value: []byte(updatedContact.Email),
+	})
+	if err != nil {
+		log.Printf("failed to write kafka message: %v", err)
+	}
+
+	return &updatedContact, nil
 }
 
 // DeleteContact removes a contact by its ID.
-func (s *contactService) DeleteContact(id uint) error {
-	// Verify if the contact exists.
-	_, err := s.repo.GetByID(id)
+func (s *ContactService) DeleteContact(ctx context.Context, id int32) error {
+	err := s.queries.DeleteContact(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrContactNotFound) {
-			return ErrContactNotFound
-		}
-		return err
+		return ErrContactNotFound
 	}
 
-	// Delete the contact.
-	if err := s.repo.Delete(id); err != nil {
-		return err
+	// Kafka event
+	err = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("contact_deleted"),
+		Value: []byte(string(rune(id))),
+	})
+	if err != nil {
+		log.Printf("failed to write kafka message: %v", err)
 	}
+
 	return nil
 }
 
 // ListContacts retrieves contacts with pagination and sorting.
-// Extended sort fields now include "company_name" and "contact_type".
-func (s *contactService) ListContacts(pageNumber uint, pageSize uint, sortBy string, ascending bool) ([]models.Contact, error) {
-	// Default pagination if invalid values provided.
+func (s *ContactService) ListContacts(ctx context.Context, pageNumber, pageSize int32) ([]db.Contact, error) {
 	if pageNumber == 0 {
 		pageNumber = 1
 	}
 	if pageSize == 0 {
 		pageSize = 10
 	}
+	offset := (pageNumber - 1) * pageSize
 
-	// Valid sort fields.
-	validSortFields := map[string]bool{
-		"first_name":   true,
-		"last_name":    true,
-		"email":        true,
-		"company_name": true,
-		"contact_type": true,
-		"created_at":   true,
-		"updated_at":   true,
-	}
-
-	if sortBy != "" && !validSortFields[sortBy] {
-		return nil, errors.New("invalid sort field")
-	}
-
-	contacts, err := s.repo.List(pageNumber, pageSize, sortBy, ascending)
+	contacts, err := s.queries.ListContacts(ctx, db.ListContactsParams{
+		Limit:  pageSize,
+		Offset: offset,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +152,8 @@ func (s *contactService) ListContacts(pageNumber uint, pageSize uint, sortBy str
 }
 
 // isValidEmail validates the email format using a regular expression.
-// func isValidEmail(email string) bool {
-// 	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
-// 	re := regexp.MustCompile(regex)
-// 	return re.MatchString(email)
-// }
+func isValidEmail(email string) bool {
+	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+	re := regexp.MustCompile(regex)
+	return re.MatchString(email)
+}

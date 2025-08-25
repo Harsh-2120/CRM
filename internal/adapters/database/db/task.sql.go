@@ -80,7 +80,6 @@ func (q *Queries) GetTask(ctx context.Context, id int32) (Task, error) {
 }
 
 const listTasks = `-- name: ListTasks :many
-
 SELECT id, title, description, status, priority, due_date, activity_id, created_at, updated_at
 FROM tasks
 WHERE activity_id = $1

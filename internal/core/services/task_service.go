@@ -1,11 +1,14 @@
 package services
 
 import (
-	"crm/internal/core/domain/models"
-	"crm/internal/core/repository"
+	"context"
+	"crm/internal/adapters/database/db"
+	"database/sql"
 	"errors"
-	"regexp"
+	"fmt"
 	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -16,29 +19,28 @@ var (
 
 // ActivityService defines the methods for activity and task management.
 type TaskService interface {
-	CreateTask(task *models.Task) (*models.Task, error)
-	GetTask(id uint) (*models.Task, error)
-	UpdateTask(task *models.Task) (*models.Task, error)
-	DeleteTask(id uint) error
-	ListTasks(pageNumber uint, pageSize uint, sortBy string, ascending bool, activityID uint) ([]models.Task, error)
+	CreateTask(ctx context.Context, task *db.CreateTaskParams) (*db.Task, error)
+	GetTask(ctx context.Context, id int32) (*db.Task, error)
+	UpdateTask(ctx context.Context, params db.UpdateTaskParams) (*db.Task, error)
+	DeleteTask(ctx context.Context, id int32) error
+	ListTasks(ctx context.Context, pageNumber, pageSize uint) ([]db.Task, error)
 }
 
 type taskService struct {
-	repo repository.TaskRepository
+	queries *db.Queries
+	kafka   *kafka.Writer
 }
 
-func NewTaskService(repo repository.TaskRepository) TaskService {
-	return &taskService{repo: repo}
+func NewTaskService(queries *db.Queries, kafkaWriter *kafka.Writer) TaskService {
+	return &taskService{queries: queries, kafka: kafkaWriter}
 }
 
 // CreateTask validates and creates a new task.
-func (s *taskService) CreateTask(task *models.Task) (*models.Task, error) {
-	// Validate required fields
+func (s *taskService) CreateTask(ctx context.Context, task *db.CreateTaskParams) (*db.Task, error) {
 	if task.Title == "" || task.Status == "" || task.Priority == "" || task.ActivityID == 0 {
 		return nil, ErrInvalidTaskData
 	}
 
-	// Validate Status and Priority against predefined sets
 	validStatuses := map[string]bool{
 		"Pending":     true,
 		"In Progress": true,
@@ -57,144 +59,121 @@ func (s *taskService) CreateTask(task *models.Task) (*models.Task, error) {
 		return nil, errors.New("invalid task priority")
 	}
 
-	// Validate DueDate
-	if !task.DueDate.IsZero() && task.DueDate.Before(time.Now()) {
+	// Validate DueDate (sql.NullTime)
+	if task.DueDate.Valid && task.DueDate.Time.Before(time.Now()) {
 		return nil, errors.New("due date cannot be in the past")
 	}
+	if !task.DueDate.Valid {
+		task.DueDate = sql.NullTime{Time: time.Now().Add(48 * time.Hour), Valid: true}
+	}
 
-	// Set timestamps
-	now := time.Now()
-	task.CreatedAt = now
-	task.UpdatedAt = now
-
-	// Attempt to create the task
-	createdTask, err := s.repo.CreateTask(task)
+	createdTask, err := s.queries.CreateTask(ctx, *task)
 	if err != nil {
-		if errors.Is(err, repository.ErrTaskExists) {
-			return nil, ErrTaskExists
-		}
 		return nil, err
 	}
 
-	return createdTask, nil
+	// Kafka event
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("task_created"),
+		Value: []byte(createdTask.Title),
+	})
+
+	return &createdTask, nil
 }
 
 // GetTask retrieves a task by Id.
-func (s *taskService) GetTask(id uint) (*models.Task, error) {
-	task, err := s.repo.GetTaskByID(id)
+func (s *taskService) GetTask(ctx context.Context, id int32) (*db.Task, error) {
+	task, err := s.queries.GetTask(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrTaskNotFound) {
-			return nil, ErrTaskNotFound
-		}
-		return nil, err
+		return nil, ErrTaskNotFound
 	}
-	return task, nil
+	return &task, nil
 }
 
 // UpdateTask validates and updates an existing task.
-func (s *taskService) UpdateTask(task *models.Task) (*models.Task, error) {
-	// Validate task Id
-	if task.Id == 0 {
+func (s *taskService) UpdateTask(ctx context.Context, params db.UpdateTaskParams) (*db.Task, error) {
+	if params.ID == 0 {
 		return nil, ErrInvalidTaskData
 	}
 
-	// Validate Status and Priority if provided
-	if task.Status != "" {
+	if params.Status != "" {
 		validStatuses := map[string]bool{
 			"Pending":     true,
 			"In Progress": true,
 			"Completed":   true,
 		}
-		if !validStatuses[task.Status] {
+		if !validStatuses[params.Status] {
 			return nil, errors.New("invalid task status")
 		}
 	}
 
-	if task.Priority != "" {
+	if params.Priority != "" {
 		validPriorities := map[string]bool{
 			"Low":    true,
 			"Medium": true,
 			"High":   true,
 		}
-		if !validPriorities[task.Priority] {
+		if !validPriorities[params.Priority] {
 			return nil, errors.New("invalid task priority")
 		}
 	}
 
-	// Validate DueDate if provided
-	if !task.DueDate.IsZero() && task.DueDate.Before(time.Now()) {
+	if params.DueDate.Valid && params.DueDate.Time.Before(time.Now()) {
 		return nil, errors.New("due date cannot be in the past")
 	}
 
-	// Set the UpdatedAt timestamp
-	task.UpdatedAt = time.Now()
-
-	// Update the task
-	updatedTask, err := s.repo.UpdateTask(task)
+	updatedTask, err := s.queries.UpdateTask(ctx, params)
 	if err != nil {
-		if errors.Is(err, repository.ErrTaskNotFound) {
-			return nil, ErrTaskNotFound
-		}
-		if errors.Is(err, repository.ErrTaskExists) {
-			return nil, ErrTaskExists
-		}
 		return nil, err
 	}
 
-	return updatedTask, nil
+	// Kafka event
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("task_updated"),
+		Value: []byte(updatedTask.Title),
+	})
+
+	return &updatedTask, nil
 }
 
 // DeleteTask removes a task by Id.
-func (s *taskService) DeleteTask(id uint) error {
-	// Check if the task exists
-	_, err := s.repo.GetTaskByID(id)
+func (s *taskService) DeleteTask(ctx context.Context, id int32) error {
+	err := s.queries.DeleteTask(ctx, id)
 	if err != nil {
-		if errors.Is(err, repository.ErrTaskNotFound) {
-			return ErrTaskNotFound
-		}
-		return err
+		return ErrTaskNotFound
 	}
 
-	// Delete the task
-	if err := s.repo.DeleteTask(id); err != nil {
-		return err
-	}
+	// Kafka event
+	_ = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("task_deleted"),
+		Value: []byte(fmt.Sprintf("%d", id)),
+	})
 	return nil
 }
 
-// ListTasks retrieves tasks with pagination, sorting, and optional filtering by activity.
-func (s *taskService) ListTasks(pageNumber uint, pageSize uint, sortBy string, ascending bool, activityID uint) ([]models.Task, error) {
-	// Validate pagination parameters
+// ListTasks retrieves tasks with pagination (basic since SQL is fixed).
+func (s *taskService) ListTasks(ctx context.Context, pageNumber, pageSize uint) ([]db.Task, error) {
 	if pageNumber == 0 {
 		pageNumber = 1
 	}
 	if pageSize == 0 {
 		pageSize = 10
 	}
+	offset := (pageNumber - 1) * pageSize
 
-	// Validate sortBy field
-	validSortFields := map[string]bool{
-		"title":      true,
-		"due_date":   true,
-		"created_at": true,
-		"updated_at": true,
-		"status":     true,
-		"priority":   true,
-	}
-	if sortBy != "" && !validSortFields[sortBy] {
-		return nil, errors.New("invalid sort field")
-	}
-
-	tasks, err := s.repo.ListTasks(pageNumber, pageSize, sortBy, ascending, activityID)
+	tasks, err := s.queries.ListTasks(ctx, db.ListTasksParams{
+		Limit:  int32(pageSize),
+		Offset: int32(offset),
+	})
 	if err != nil {
 		return nil, err
 	}
 	return tasks, nil
 }
 
-// Helper function to validate email format using regex (if needed for tasks).
-func isValidEmail(email string) bool {
-	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
-	re := regexp.MustCompile(regex)
-	return re.MatchString(email)
-}
+// (Optional) Helper function to validate email format if tasks had email fields.
+// func isValidEmail(email string) bool {
+// 	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
+// 	re := regexp.MustCompile(regex)
+// 	return re.MatchString(email)
+// }

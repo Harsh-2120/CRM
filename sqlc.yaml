@@ -1,6 +1,6 @@
 version: "2"
 sql:
-  - engine: "postgresql"   # or mysql if you’re using that
+  - engine: "postgresql"   
     schema: "internal/adapters/database/migration"
     queries: "internal/adapters/database/queries"
     gen:

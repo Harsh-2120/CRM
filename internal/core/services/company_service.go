@@ -1,11 +1,13 @@
 package services
 
 import (
-	"crm/internal/core/domain/models"
-	"crm/internal/core/repository"
+	"context"
+	"crm/internal/adapters/database/db"
 	"errors"
+	"log"
 	"strings"
-	"time"
+
+	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -13,68 +15,92 @@ var (
 	ErrInvalidCompanyData = errors.New("invalid company data")
 )
 
-type CompanyService interface {
-	CreateCompany(company *models.Company) (*models.Company, error)
-	GetCompany(id uint) (*models.Company, error)
-	UpdateCompany(company *models.Company) (*models.Company, error)
-	DeleteCompany(id uint) error
-	ListCompanies(orgID uint, page, size uint, sortBy string, asc bool) ([]models.Company, error)
+type CompanyServiceInterface interface {
+	CreateCompany(ctx context.Context, company db.CreateCompanyParams) (*db.Company, error)
+	GetCompany(ctx context.Context, id int32) (*db.Company, error)
+	UpdateCompany(ctx context.Context, company db.UpdateCompanyParams) (*db.Company, error)
+	DeleteCompany(ctx context.Context, id int32) error
+	ListCompanies(ctx context.Context, orgID int32, page, size int32) ([]db.Company, error)
+}
+type CompanyService struct {
+	queries *db.Queries
+	kafka   *kafka.Writer
 }
 
-type companyService struct {
-	repo repository.CompanyRepository
+func NewCompanyService(queries *db.Queries, kafkaWriter *kafka.Writer) *CompanyService {
+	return &CompanyService{queries: queries, kafka: kafkaWriter}
 }
 
-func NewCompanyService(repo repository.CompanyRepository) CompanyService {
-	return &companyService{repo: repo}
-}
-
-func (s *companyService) CreateCompany(company *models.Company) (*models.Company, error) {
-	// Basic validation
+func (s *CompanyService) CreateCompany(ctx context.Context, company db.CreateCompanyParams) (*db.Company, error) {
 	if strings.TrimSpace(company.Name) == "" || company.OrganizationID == 0 {
 		return nil, ErrInvalidCompanyData
 	}
 
-	company.CreatedAt = time.Now()
-	company.UpdatedAt = time.Now()
-
-	return s.repo.Create(company)
-}
-
-func (s *companyService) GetCompany(id uint) (*models.Company, error) {
-	company, err := s.repo.GetByID(id)
+	createdCompany, err := s.queries.CreateCompany(ctx, company)
 	if err != nil {
-		if errors.Is(err, repository.ErrCompanyNotFound) {
-			return nil, ErrCompanyNotFound
-		}
 		return nil, err
 	}
-	return company, nil
+
+	// Publish Kafka event
+	err = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("company_created"),
+		Value: []byte(createdCompany.Name),
+	})
+	if err != nil {
+		log.Printf("failed to write kafka message: %v", err)
+	}
+
+	return &createdCompany, nil
 }
 
-func (s *companyService) UpdateCompany(company *models.Company) (*models.Company, error) {
+func (s *CompanyService) GetCompany(ctx context.Context, id int32) (*db.Company, error) {
+	company, err := s.queries.GetCompany(ctx, id)
+	if err != nil {
+		return nil, ErrCompanyNotFound
+	}
+	return &company, nil
+}
+
+func (s *CompanyService) UpdateCompany(ctx context.Context, company db.UpdateCompanyParams) (*db.Company, error) {
 	if company.ID == 0 || strings.TrimSpace(company.Name) == "" {
 		return nil, ErrInvalidCompanyData
 	}
 
-	company.UpdatedAt = time.Now()
-
-	updated, err := s.repo.Update(company)
+	updatedCompany, err := s.queries.UpdateCompany(ctx, company)
 	if err != nil {
-		if errors.Is(err, repository.ErrCompanyNotFound) {
-			return nil, ErrCompanyNotFound
-		}
-		return nil, err
+		return nil, ErrCompanyNotFound
 	}
 
-	return updated, nil
+	// Kafka Event
+	err = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("company_updated"),
+		Value: []byte(updatedCompany.Name),
+	})
+	if err != nil {
+		log.Printf("failed to write kafka message: %v", err)
+	}
+
+	return &updatedCompany, nil
 }
 
-func (s *companyService) DeleteCompany(id uint) error {
-	return s.repo.Delete(id)
+func (s *CompanyService) DeleteCompany(ctx context.Context, id int32) error {
+	err := s.queries.DeleteCompany(ctx, id)
+	if err != nil {
+		return ErrCompanyNotFound
+	}
+
+	// Kafka Event
+	err = s.kafka.WriteMessages(ctx, kafka.Message{
+		Key:   []byte("company_deleted"),
+		Value: []byte(string(rune(id))),
+	})
+	if err != nil {
+		log.Printf("failed to write kafka message: %v", err)
+	}
+	return nil
 }
 
-func (s *companyService) ListCompanies(orgID uint, page, size uint, sortBy string, asc bool) ([]models.Company, error) {
+func (s *CompanyService) ListCompanies(ctx context.Context, orgID int32, page, size uint) ([]db.Company, error) {
 	if page == 0 {
 		page = 1
 	}
@@ -82,5 +108,15 @@ func (s *companyService) ListCompanies(orgID uint, page, size uint, sortBy strin
 		size = 10
 	}
 
-	return s.repo.List(orgID, page, size, sortBy, asc)
+	offset := (page - 1) * size
+	companies, err := s.queries.ListCompanies(ctx, db.ListCompaniesParams{
+		OrganizationID: orgID,
+		Limit:          int32(size),
+		Offset:         int32(offset),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return companies, nil
 }

@@ -7,7 +7,6 @@ RETURNING *;
 SELECT * FROM tasks WHERE id = $1;
 
 -- name: ListTasks :many
-
 SELECT *
 FROM tasks
 WHERE activity_id = $1
