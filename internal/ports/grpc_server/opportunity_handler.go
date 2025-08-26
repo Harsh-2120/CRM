@@ -178,23 +178,23 @@ func convertProtoToModel(protoOpp *pb.Opportunity) (*models.Opportunity, error) 
 	}, nil
 }
 
-func convertModelToProto(modelOpp *models.Opportunity) *pb.Opportunity {
-	// Convert models.Opportunity to protobuf Opportunity
-	return &pb.Opportunity{
-		Id:          uint32(modelOpp.Id),
-		Name:        modelOpp.Name,
-		Description: modelOpp.Description,
-		Stage:       modelOpp.Stage,
-		Amount:      modelOpp.Amount,
-		CloseDate:   modelOpp.CloseDate.Format(time.RFC3339),
-		Probability: modelOpp.Probability,
-		LeadId:      uint32(modelOpp.LeadID),
-		AccountId:   uint32(modelOpp.AccountID),
-		OwnerId:     uint32(modelOpp.OwnerID),
-		CreatedAt:   modelOpp.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   modelOpp.UpdatedAt.Format(time.RFC3339),
-	}
-}
+// func convertModelToProto(modelOpp *models.Opportunity) *pb.Opportunity {
+// 	// Convert models.Opportunity to protobuf Opportunity
+// 	return &pb.Opportunity{
+// 		Id:          uint32(modelOpp.Id),
+// 		Name:        modelOpp.Name,
+// 		Description: modelOpp.Description,
+// 		Stage:       modelOpp.Stage,
+// 		Amount:      modelOpp.Amount,
+// 		CloseDate:   modelOpp.CloseDate.Format(time.RFC3339),
+// 		Probability: modelOpp.Probability,
+// 		LeadId:      uint32(modelOpp.LeadID),
+// 		AccountId:   uint32(modelOpp.AccountID),
+// 		OwnerId:     uint32(modelOpp.OwnerID),
+// 		CreatedAt:   modelOpp.CreatedAt.Format(time.RFC3339),
+// 		UpdatedAt:   modelOpp.UpdatedAt.Format(time.RFC3339),
+// 	}
+// }
 
 func parseDate(dateStr string) (time.Time, error) {
 	// Try parsing in YYYY-MM-DD format

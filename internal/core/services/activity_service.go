@@ -3,17 +3,16 @@ package services
 import (
 	"context"
 	"crm/internal/adapters/database/db"
+	"crm/internal/adapters/kafka"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
-
-	"github.com/segmentio/kafka-go"
 )
 
 var (
-	ErrActivityNotFound    = errors.New("activity not found")
-	ErrInvalidActivityData = errors.New("invalid activity data")
+	ErrActivityNotFound      = errors.New("activity not found")
+	ErrActivityAlreadyExists = errors.New("activity with this title already exists")
+	ErrInvalidActivityData   = errors.New("invalid activity data")
 )
 
 type ActivityService interface {
@@ -26,11 +25,11 @@ type ActivityService interface {
 
 type activityService struct {
 	queries *db.Queries
-	kafka   *kafka.Writer
+	kafka   *kafka.Producer
 }
 
-func NewActivityService(queries *db.Queries, kafkaWriter *kafka.Writer) ActivityService {
-	return &activityService{queries: queries, kafka: kafkaWriter}
+func NewActivityService(queries *db.Queries, producer *kafka.Producer) ActivityService {
+	return &activityService{queries: queries, kafka: producer}
 }
 
 // CreateActivity validates and creates a new activity.
@@ -53,9 +52,9 @@ func (s *activityService) CreateActivity(ctx context.Context, activity *db.Creat
 	}
 
 	// Publish Kafka Event
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("activity_created"),
-		Value: []byte(createdActivity.Title),
+	_ = s.kafka.Publish(ctx, kafka.TopicActivityCreated, "activity_created", map[string]interface{}{
+		"id":    createdActivity.ID,
+		"title": createdActivity.Title,
 	})
 
 	return &createdActivity, nil
@@ -100,9 +99,9 @@ func (s *activityService) UpdateActivity(ctx context.Context, params db.UpdateAc
 	}
 
 	// Publish Kafka Event
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("activity_updated"),
-		Value: []byte(updatedActivity.Title),
+	_ = s.kafka.Publish(ctx, kafka.TopicActivityUpdated, "activity_updated", map[string]interface{}{
+		"id":    updatedActivity.ID,
+		"title": updatedActivity.Title,
 	})
 
 	return &updatedActivity, nil
@@ -115,11 +114,11 @@ func (s *activityService) DeleteActivity(ctx context.Context, id int32) error {
 		return ErrActivityNotFound
 	}
 
-	// Publish Kafka Event (convert id properly to string)
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("activity_deleted"),
-		Value: []byte(fmt.Sprintf("%d", id)),
+	// Publish Kafka Event
+	_ = s.kafka.Publish(ctx, kafka.TopicActivityDeleted, "activity_deleted", map[string]interface{}{
+		"id": id,
 	})
+
 	return nil
 }
 

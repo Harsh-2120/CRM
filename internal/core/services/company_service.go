@@ -3,11 +3,9 @@ package services
 import (
 	"context"
 	"crm/internal/adapters/database/db"
+	"crm/internal/adapters/kafka"
 	"errors"
-	"log"
 	"strings"
-
-	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -24,11 +22,11 @@ type CompanyServiceInterface interface {
 }
 type CompanyService struct {
 	queries *db.Queries
-	kafka   *kafka.Writer
+	kafka   *kafka.Producer
 }
 
-func NewCompanyService(queries *db.Queries, kafkaWriter *kafka.Writer) *CompanyService {
-	return &CompanyService{queries: queries, kafka: kafkaWriter}
+func NewCompanyService(queries *db.Queries, producer *kafka.Producer) *CompanyService {
+	return &CompanyService{queries: queries, kafka: producer}
 }
 
 func (s *CompanyService) CreateCompany(ctx context.Context, company db.CreateCompanyParams) (*db.Company, error) {
@@ -42,13 +40,10 @@ func (s *CompanyService) CreateCompany(ctx context.Context, company db.CreateCom
 	}
 
 	// Publish Kafka event
-	err = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("company_created"),
-		Value: []byte(createdCompany.Name),
+	_ = s.kafka.Publish(ctx, kafka.TopicCompanyCreated, "company_created", map[string]interface{}{
+		"id":   createdCompany.ID,
+		"name": createdCompany.Name,
 	})
-	if err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
 
 	return &createdCompany, nil
 }
@@ -72,13 +67,10 @@ func (s *CompanyService) UpdateCompany(ctx context.Context, company db.UpdateCom
 	}
 
 	// Kafka Event
-	err = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("company_updated"),
-		Value: []byte(updatedCompany.Name),
+	_ = s.kafka.Publish(ctx, kafka.TopicCompanyUpdated, "company_updated", map[string]interface{}{
+		"id":   updatedCompany.ID,
+		"name": updatedCompany.Name,
 	})
-	if err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
 
 	return &updatedCompany, nil
 }
@@ -90,13 +82,10 @@ func (s *CompanyService) DeleteCompany(ctx context.Context, id int32) error {
 	}
 
 	// Kafka Event
-	err = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("company_deleted"),
-		Value: []byte(string(rune(id))),
+	_ = s.kafka.Publish(ctx, kafka.TopicCompanyDeleted, "company_deleted", map[string]interface{}{
+		"id": id,
 	})
-	if err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
+
 	return nil
 }
 

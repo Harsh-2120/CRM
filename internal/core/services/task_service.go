@@ -3,12 +3,10 @@ package services
 import (
 	"context"
 	"crm/internal/adapters/database/db"
+	"crm/internal/adapters/kafka"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
-
-	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -28,11 +26,11 @@ type TaskService interface {
 
 type taskService struct {
 	queries *db.Queries
-	kafka   *kafka.Writer
+	kafka   *kafka.Producer
 }
 
-func NewTaskService(queries *db.Queries, kafkaWriter *kafka.Writer) TaskService {
-	return &taskService{queries: queries, kafka: kafkaWriter}
+func NewTaskService(queries *db.Queries, producer *kafka.Producer) TaskService {
+	return &taskService{queries: queries, kafka: producer}
 }
 
 // CreateTask validates and creates a new task.
@@ -59,7 +57,7 @@ func (s *taskService) CreateTask(ctx context.Context, task *db.CreateTaskParams)
 		return nil, errors.New("invalid task priority")
 	}
 
-	// Validate DueDate (sql.NullTime)
+	// Validate DueDate
 	if task.DueDate.Valid && task.DueDate.Time.Before(time.Now()) {
 		return nil, errors.New("due date cannot be in the past")
 	}
@@ -73,9 +71,11 @@ func (s *taskService) CreateTask(ctx context.Context, task *db.CreateTaskParams)
 	}
 
 	// Kafka event
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("task_created"),
-		Value: []byte(createdTask.Title),
+	_ = s.kafka.Publish(ctx, kafka.TopicTaskCreated, "task_created", map[string]interface{}{
+		"id":       createdTask.ID,
+		"title":    createdTask.Title,
+		"status":   createdTask.Status,
+		"priority": createdTask.Priority,
 	})
 
 	return &createdTask, nil
@@ -128,9 +128,11 @@ func (s *taskService) UpdateTask(ctx context.Context, params db.UpdateTaskParams
 	}
 
 	// Kafka event
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("task_updated"),
-		Value: []byte(updatedTask.Title),
+	_ = s.kafka.Publish(ctx, kafka.TopicTaskUpdated, "task_updated", map[string]interface{}{
+		"id":       updatedTask.ID,
+		"title":    updatedTask.Title,
+		"status":   updatedTask.Status,
+		"priority": updatedTask.Priority,
 	})
 
 	return &updatedTask, nil
@@ -144,10 +146,10 @@ func (s *taskService) DeleteTask(ctx context.Context, id int32) error {
 	}
 
 	// Kafka event
-	_ = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("task_deleted"),
-		Value: []byte(fmt.Sprintf("%d", id)),
+	_ = s.kafka.Publish(ctx, kafka.TopicTaskDeleted, "task_deleted", map[string]interface{}{
+		"id": id,
 	})
+
 	return nil
 }
 
@@ -170,10 +172,3 @@ func (s *taskService) ListTasks(ctx context.Context, pageNumber, pageSize uint) 
 	}
 	return tasks, nil
 }
-
-// (Optional) Helper function to validate email format if tasks had email fields.
-// func isValidEmail(email string) bool {
-// 	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
-// 	re := regexp.MustCompile(regex)
-// 	return re.MatchString(email)
-// }

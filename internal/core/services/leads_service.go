@@ -1,7 +1,7 @@
 package services
 
 import (
-	"crm/internal/core/domain/models"
+	"crm/internal/adapters/database/db"
 	"crm/internal/core/repository"
 	"errors"
 	"fmt"
@@ -25,8 +25,9 @@ type LeadService interface {
 	GetAllLeads() ([]models.Lead, error)
 }
 
-type leadService struct {
-	repo repository.LeadRepository
+type LeadService struct {
+	queries *db.Queries
+	producer KafkaProducer
 }
 
 func NewLeadService(repo repository.LeadRepository) LeadService {

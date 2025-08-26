@@ -3,12 +3,10 @@ package services
 import (
 	"context"
 	"crm/internal/adapters/database/db"
+	"crm/internal/adapters/kafka"
 	"errors"
-	"log"
 	"regexp"
 	"strings"
-
-	"github.com/segmentio/kafka-go"
 )
 
 var (
@@ -27,15 +25,14 @@ type ContactServiceInterface interface {
 
 type ContactService struct {
 	queries *db.Queries
-	kafka   *kafka.Writer
+	kafka   *kafka.Producer
 }
 
-func NewContactService(queries *db.Queries, kafkaWriter *kafka.Writer) *ContactService {
-	return &ContactService{queries: queries, kafka: kafkaWriter}
+func NewContactService(queries *db.Queries, producer *kafka.Producer) *ContactService {
+	return &ContactService{queries: queries, kafka: producer}
 }
 
 // CreateContact validates and creates a new unified contact.
-// It ensures that required fields are present based on the ContactType.
 func (s *ContactService) CreateContact(ctx context.Context, contact db.CreateContactParams) (*db.Contact, error) {
 	// Email (string, NOT NULL)
 	if strings.TrimSpace(contact.Email) == "" {
@@ -48,7 +45,6 @@ func (s *ContactService) CreateContact(ctx context.Context, contact db.CreateCon
 	// Validate based on type
 	switch contact.ContactType {
 	case "individual":
-		// sql.NullString must be checked with .Valid
 		if !contact.FirstName.Valid || !contact.LastName.Valid {
 			return nil, ErrInvalidContactData
 		}
@@ -67,12 +63,11 @@ func (s *ContactService) CreateContact(ctx context.Context, contact db.CreateCon
 	}
 
 	// Kafka event
-	if err := s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("contact_created"),
-		Value: []byte(createdContact.Email), // Email is plain string
-	}); err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
+	_ = s.kafka.Publish(ctx, kafka.TopicContactCreated, "contact_created", map[string]interface{}{
+		"id":    createdContact.ID,
+		"email": createdContact.Email,
+		"type":  createdContact.ContactType,
+	})
 
 	return &createdContact, nil
 }
@@ -101,13 +96,11 @@ func (s *ContactService) UpdateContact(ctx context.Context, contact db.UpdateCon
 	}
 
 	// Kafka event
-	err = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("contact_updated"),
-		Value: []byte(updatedContact.Email),
+	_ = s.kafka.Publish(ctx, kafka.TopicContactUpdated, "contact_updated", map[string]interface{}{
+		"id":    updatedContact.ID,
+		"email": updatedContact.Email,
+		"type":  updatedContact.ContactType,
 	})
-	if err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
 
 	return &updatedContact, nil
 }
@@ -120,13 +113,9 @@ func (s *ContactService) DeleteContact(ctx context.Context, id int32) error {
 	}
 
 	// Kafka event
-	err = s.kafka.WriteMessages(ctx, kafka.Message{
-		Key:   []byte("contact_deleted"),
-		Value: []byte(string(rune(id))),
+	_ = s.kafka.Publish(ctx, kafka.TopicContactDeleted, "contact_deleted", map[string]interface{}{
+		"id": id,
 	})
-	if err != nil {
-		log.Printf("failed to write kafka message: %v", err)
-	}
 
 	return nil
 }

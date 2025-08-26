@@ -3,8 +3,9 @@ package handler
 import (
 	"context"
 	"crm/api/proto/pb"
-	
+	"crm/internal/adapters/database/db"
 	"crm/internal/core/services"
+	"database/sql"
 	"log"
 	"time"
 
@@ -21,19 +22,15 @@ func NewActivityHandler(service services.ActivityService) *ActivityHandler {
 	return &ActivityHandler{activityService: service}
 }
 
-// CreateActivity handles the creation of a new activity.
 func (h *ActivityHandler) CreateActivity(ctx context.Context, req *pb.CreateActivityRequest) (*pb.CreateActivityResponse, error) {
 	log.Printf("Received CreateActivity request: %+v", req)
+	activity := convertProtoToCreateParams(req.Activity)
 
-	// Convert Proto to Model
-	activity := convertProtoToModel(req.Activity)
-
-	// Create Activity via Service
-	createdActivity, err := h.activityService.CreateActivity(ctx, activity)
+	createdActivity, err := h.activityService.CreateActivity(ctx, &activity)
 	if err != nil {
 		log.Printf("Error creating activity: %v", err)
 		switch err {
-		case services.ErrActivityExists:
+		case services.ErrActivityAlreadyExists:
 			return nil, status.Error(codes.AlreadyExists, err.Error())
 		case services.ErrInvalidActivityData:
 			return nil, status.Error(codes.InvalidArgument, err.Error())
@@ -42,23 +39,19 @@ func (h *ActivityHandler) CreateActivity(ctx context.Context, req *pb.CreateActi
 		}
 	}
 
-	// Convert Model to Proto
 	return &pb.CreateActivityResponse{
 		Activity: convertModelToProto(createdActivity),
 	}, nil
 }
 
-// GetActivity handles retrieval of an activity by ID.
 func (h *ActivityHandler) GetActivity(ctx context.Context, req *pb.GetActivityRequest) (*pb.GetActivityResponse, error) {
-	activity, err := h.activityService.GetActivity(uint(req.Id))
+	activity, err := h.activityService.GetActivity(ctx, int32(req.Id))
 	if err != nil {
 		log.Printf("Error getting activity: %v", err)
-		switch err {
-		case services.ErrActivityNotFound:
+		if err == services.ErrActivityNotFound {
 			return nil, status.Error(codes.NotFound, err.Error())
-		default:
-			return nil, status.Error(codes.Internal, "failed to get activity")
 		}
+		return nil, status.Error(codes.Internal, "failed to get activity")
 	}
 
 	return &pb.GetActivityResponse{
@@ -66,24 +59,18 @@ func (h *ActivityHandler) GetActivity(ctx context.Context, req *pb.GetActivityRe
 	}, nil
 }
 
-// UpdateActivity handles updating an existing activity.
 func (h *ActivityHandler) UpdateActivity(ctx context.Context, req *pb.UpdateActivityRequest) (*pb.UpdateActivityResponse, error) {
-
 	log.Printf("Received UpdateActivity request: %+v", req)
 
-	// Convert Proto to Model
-	activity := convertProtoToModel(req.Activity)
+	// Convert Proto → sqlc params
+	params := convertProtoToUpdateParams(req.Activity)
 
-	// Update Activity via Service
-	updatedActivity, err := h.activityService.UpdateActivity(activity)
-
+	updatedActivity, err := h.activityService.UpdateActivity(ctx, params)
 	if err != nil {
 		log.Printf("Error updating activity: %v", err)
 		switch err {
 		case services.ErrActivityNotFound:
 			return nil, status.Error(codes.NotFound, err.Error())
-		case services.ErrActivityExists:
-			return nil, status.Error(codes.AlreadyExists, err.Error())
 		case services.ErrInvalidActivityData:
 			return nil, status.Error(codes.InvalidArgument, err.Error())
 		default:
@@ -91,88 +78,126 @@ func (h *ActivityHandler) UpdateActivity(ctx context.Context, req *pb.UpdateActi
 		}
 	}
 
-	// Convert Model to Proto
-	log.Print("updated log", updatedActivity)
 	return &pb.UpdateActivityResponse{
 		Activity: convertModelToProto(updatedActivity),
 	}, nil
 }
 
-// DeleteActivity handles deletion of an activity by ID.
 func (h *ActivityHandler) DeleteActivity(ctx context.Context, req *pb.DeleteActivityRequest) (*pb.DeleteActivityResponse, error) {
 	log.Printf("Received DeleteActivity request: %+v", req)
 
-	// Delete Activity via Service
-	err := h.activityService.DeleteActivity(uint(req.Id))
+	err := h.activityService.DeleteActivity(ctx, int32(req.Id))
 	if err != nil {
 		log.Printf("Error deleting activity: %v", err)
-		switch err {
-		case services.ErrActivityNotFound:
+		if err == services.ErrActivityNotFound {
 			return nil, status.Error(codes.NotFound, err.Error())
-		default:
-			return nil, status.Error(codes.Internal, "failed to delete activity")
 		}
+		return nil, status.Error(codes.Internal, "failed to delete activity")
 	}
 
-	// Return Success
-	return &pb.DeleteActivityResponse{
-		Success: true,
-	}, nil
+	return &pb.DeleteActivityResponse{Success: true}, nil
 }
 
-// ListActivities handles listing activities with pagination and optional filtering.
 func (h *ActivityHandler) ListActivities(ctx context.Context, req *pb.ListActivitiesRequest) (*pb.ListActivitiesResponse, error) {
-	activities, err := h.activityService.ListActivities(uint(req.PageNumber), uint(req.PageSize), req.SortBy, req.Ascending, uint(req.ContactId))
+	activities, err := h.activityService.ListActivities(ctx, uint(req.PageNumber), uint(req.PageSize))
 	if err != nil {
 		log.Printf("Error listing activities: %v", err)
-		switch err {
-		case services.ErrInvalidActivityData:
+		if err == services.ErrInvalidActivityData {
 			return nil, status.Error(codes.InvalidArgument, err.Error())
-		default:
-			return nil, status.Error(codes.Internal, "failed to list activities")
 		}
+		return nil, status.Error(codes.Internal, "failed to list activities")
 	}
 
-	// Convert Models to Proto
 	var protoActivities []*pb.Activity
 	for _, activity := range activities {
 		protoActivities = append(protoActivities, convertModelToProto(&activity))
 	}
 
-	return &pb.ListActivitiesResponse{
-		Activities: protoActivities,
-	}, nil
+	return &pb.ListActivitiesResponse{Activities: protoActivities}, nil
 }
 
-// Conversion Functions
+func convertProtoToCreateParams(proto *pb.Activity) db.CreateActivityParams {
+	// Handle description
+	desc := sql.NullString{Valid: proto.Description != ""}
+	if desc.Valid {
+		desc.String = proto.Description
+	}
 
-func convertProtoToModel(protoActivity *pb.Activity) *models.Activity {
-	dueDate, _ := time.Parse(time.RFC3339, protoActivity.DueDate)
-	return &models.Activity{
-		Id:          uint(protoActivity.Id),
-		Title:       protoActivity.Title,
-		Description: protoActivity.Description,
-		Type:        protoActivity.Type,
-		Status:      protoActivity.Status,
-		DueDate:     dueDate,
-		ContactID:   uint(protoActivity.ContactId),
+	// Handle due_date
+	var due sql.NullTime
+	if proto.DueDate != "" {
+		if t, err := time.Parse(time.RFC3339, proto.DueDate); err == nil {
+			due = sql.NullTime{Time: t, Valid: true}
+		}
+	}
+
+	return db.CreateActivityParams{
+		Title:       proto.Title,
+		Description: desc,
+		Type:        proto.Type,
+		Status:      proto.Status,
+		DueDate:     due,
+		ContactID:   int32(proto.ContactId),
 	}
 }
 
-func convertModelToProto(modelActivity *models.Activity) *pb.Activity {
+func convertProtoToUpdateParams(proto *pb.Activity) db.UpdateActivityParams {
+	// Handle description
+	desc := sql.NullString{Valid: proto.Description != ""}
+	if desc.Valid {
+		desc.String = proto.Description
+	}
+
+	// Handle due_date
+	var due sql.NullTime
+	if proto.DueDate != "" {
+		if t, err := time.Parse(time.RFC3339, proto.DueDate); err == nil {
+			due = sql.NullTime{Time: t, Valid: true}
+		}
+	}
+
+	return db.UpdateActivityParams{
+		ID:          int32(proto.Id),
+		Description: desc,
+		Status:      proto.Status,
+		DueDate:     due,
+	}
+}
+
+// ---------- SQLC Model → Proto ----------
+
+func convertModelToProto(model *db.Activity) *pb.Activity {
+	// Handle description
+	desc := ""
+	if model.Description.Valid {
+		desc = model.Description.String
+	}
+
+	// Handle due_date
 	dueDate := ""
-	if !modelActivity.DueDate.IsZero() {
-		dueDate = modelActivity.DueDate.Format(time.RFC3339)
+	if model.DueDate.Valid {
+		dueDate = model.DueDate.Time.Format(time.RFC3339)
 	}
+
+	// Handle created_at / updated_at
+	created := ""
+	if model.CreatedAt.Valid {
+		created = model.CreatedAt.Time.Format(time.RFC3339)
+	}
+	updated := ""
+	if model.UpdatedAt.Valid {
+		updated = model.UpdatedAt.Time.Format(time.RFC3339)
+	}
+
 	return &pb.Activity{
-		Id:          uint32(modelActivity.Id),
-		Title:       modelActivity.Title,
-		Description: modelActivity.Description,
-		Type:        modelActivity.Type,
-		Status:      modelActivity.Status,
+		Id:          uint32(model.ID),
+		Title:       model.Title,
+		Description: desc,
+		Type:        model.Type,
+		Status:      model.Status,
 		DueDate:     dueDate,
-		CreatedAt:   modelActivity.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   modelActivity.UpdatedAt.Format(time.RFC3339),
-		ContactId:   uint32(modelActivity.ContactID),
+		ContactId:   uint32(model.ContactID),
+		CreatedAt:   created,
+		UpdatedAt:   updated,
 	}
 }

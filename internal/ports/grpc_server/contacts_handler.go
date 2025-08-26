@@ -148,33 +148,33 @@ func convertProtoToModel(protoContact *pb.Contact) *models.Contact {
 }
 
 // convertModelToProto maps the unified Contact model back to the proto Contact message.
-func convertModelToProto(modelContact *models.Contact) *pb.Contact {
-	var taxationDetailId uint32
-	if modelContact.TaxationDetailID != nil {
-		taxationDetailId = uint32(*modelContact.TaxationDetailID)
-	}
+// func convertModelToProto(modelContact *models.Contact) *pb.Contact {
+// 	var taxationDetailId uint32
+// 	if modelContact.TaxationDetailID != nil {
+// 		taxationDetailId = uint32(*modelContact.TaxationDetailID)
+// 	}
 
-	return &pb.Contact{
-		Id:                  uint32(modelContact.ID),
-		ContactType:         modelContact.ContactType,
-		FirstName:           modelContact.FirstName,
-		LastName:            modelContact.LastName,
-		CompanyName:         modelContact.CompanyName,
-		Email:               modelContact.Email,
-		Phone:               modelContact.Phone,
-		Address:             modelContact.Address,
-		City:                modelContact.City,
-		State:               modelContact.State,
-		Country:             modelContact.Country,
-		ZipCode:             modelContact.ZipCode,
-		Position:            modelContact.Position,
-		SocialMediaProfiles: modelContact.SocialMediaProfiles,
-		Notes:               modelContact.Notes,
-		TaxationDetailId:    taxationDetailId,
-		CreatedAt:           modelContact.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:           modelContact.UpdatedAt.Format(time.RFC3339),
-	}
-}
+// 	return &pb.Contact{
+// 		Id:                  uint32(modelContact.ID),
+// 		ContactType:         modelContact.ContactType,
+// 		FirstName:           modelContact.FirstName,
+// 		LastName:            modelContact.LastName,
+// 		CompanyName:         modelContact.CompanyName,
+// 		Email:               modelContact.Email,
+// 		Phone:               modelContact.Phone,
+// 		Address:             modelContact.Address,
+// 		City:                modelContact.City,
+// 		State:               modelContact.State,
+// 		Country:             modelContact.Country,
+// 		ZipCode:             modelContact.ZipCode,
+// 		Position:            modelContact.Position,
+// 		SocialMediaProfiles: modelContact.SocialMediaProfiles,
+// 		Notes:               modelContact.Notes,
+// 		TaxationDetailId:    taxationDetailId,
+// 		CreatedAt:           modelContact.CreatedAt.Format(time.RFC3339),
+// 		UpdatedAt:           modelContact.UpdatedAt.Format(time.RFC3339),
+// 	}
+// }
 
 // parseTime converts an RFC3339 time string to a time.Time value.
 func parseTime(timeStr string) time.Time {

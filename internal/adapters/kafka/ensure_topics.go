@@ -1,41 +1,39 @@
 package kafka
 
-// import (
-// 	"context"
-// 	"fmt"
+import (
+	"context"
+	"fmt"
 
-// 	"github.com/segmentio/kafka-go"
-// )
+	"github.com/segmentio/kafka-go"
+)
 
-// // EnsureTopics ensures that the specified Kafka topics exist.
-// func EnsureTopics(brokers []string, topics []kafka.TopicConfig) error {
-// 	conn, err := kafka.DialContext(context.Background(), "tcp", brokers[0])
-// 	if err != nil {
-// 		return fmt.Errorf("failed to dial Kafka broker %s: %w", brokers[0], err)
-// 	}
-// 	defer conn.Close()
+// EnsureTopics ensures that the specified Kafka topics exist.
+// It connects to the Kafka controller and creates topics if missing.
+func EnsureTopics(brokers []string, topics []kafka.TopicConfig) error {
+	// Connect to the first broker
+	conn, err := kafka.DialContext(context.Background(), "tcp", brokers[0])
+	if err != nil {
+		return fmt.Errorf("failed to dial Kafka broker %s: %w", brokers[0], err)
+	}
+	defer conn.Close()
 
-// 	controller, err := conn.Controller()
-// 	if err != nil {
-// 		return fmt.Errorf("failed to get Kafka controller: %w", err)
-// 	}
+	// Get controller (the broker responsible for topic management)
+	controller, err := conn.Controller()
+	if err != nil {
+		return fmt.Errorf("failed to get Kafka controller: %w", err)
+	}
 
-// 	controllerConn, err := kafka.Dial("tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
-// 	if err != nil {
-// 		return fmt.Errorf("failed to dial Kafka controller %s:%d: %w", controller.Host, controller.Port, err)
-// 	}
-// 	defer controllerConn.Close()
+	controllerConn, err := kafka.Dial("tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
+	if err != nil {
+		return fmt.Errorf("failed to dial Kafka controller %s:%d: %w", controller.Host, controller.Port, err)
+	}
+	defer controllerConn.Close()
 
-// 	// No context and no variadic error — pass topic configs directly
-// 	err = controllerConn.CreateTopics(topics...)
-// 	if err != nil {
-// 		if err.Error() == "Topic with this name already exists" {
-// 			appLogger.Info("Kafka topic already exists, skipping creation.")
-// 		} else {
-// 			return fmt.Errorf("failed to create Kafka topics: %w", err)
-// 		}
-// 	}
+	// Create topics if not already present
+	err = controllerConn.CreateTopics(topics...)
+	if err != nil && err.Error() != "Topic with this name already exists" {
+		return fmt.Errorf("failed to create Kafka topics: %w", err)
+	}
 
-// 	appLogger.Info("Kafka topics ensured successfully.")
-// 	return nil
-// }
+	return nil
+}
