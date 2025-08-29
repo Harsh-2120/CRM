@@ -1,7 +1,7 @@
 -- name: CreateLead :one
 INSERT INTO leads (first_name, last_name, email, phone, status, assigned_to, organization_id)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING.*;
+RETURNING *;
 
 -- name: GetLeadById :one
 SELECT * FROM leads WHERE id = $1;

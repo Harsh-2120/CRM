@@ -20,9 +20,9 @@ type CreateOpportunityParams struct {
 	Name        sql.NullString
 	Description sql.NullString
 	Stage       sql.NullString
-	Amount      sql.NullString
+	Amount      float64
 	CloseDate   sql.NullTime
-	Probability sql.NullString
+	Probability float64
 	LeadID      sql.NullInt32
 	AccountID   sql.NullInt32
 	OwnerID     sql.NullInt32
@@ -144,8 +144,8 @@ RETURNING id, name, description, stage, amount, close_date, probability, lead_id
 type UpdateOpportunityParams struct {
 	ID          int32
 	Stage       sql.NullString
-	Amount      sql.NullString
-	Probability sql.NullString
+	Amount      float64
+	Probability float64
 }
 
 func (q *Queries) UpdateOpportunity(ctx context.Context, arg UpdateOpportunityParams) (Opportunity, error) {

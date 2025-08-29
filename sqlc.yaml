@@ -7,3 +7,6 @@ sql:
       go:
         package: "db"
         out: "internal/adapters/database/db"
+        overrides:
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"

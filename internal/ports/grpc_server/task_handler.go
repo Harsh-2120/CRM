@@ -3,7 +3,7 @@ package handler
 import (
 	"context"
 	"crm/api/proto/pb"
-	"crm/internal/core/domain/models"
+
 	"crm/internal/core/services"
 	"log"
 	"time"

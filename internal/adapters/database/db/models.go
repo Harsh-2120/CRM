@@ -78,9 +78,9 @@ type Opportunity struct {
 	Name        sql.NullString
 	Description sql.NullString
 	Stage       sql.NullString
-	Amount      sql.NullString
+	Amount      float64
 	CloseDate   sql.NullTime
-	Probability sql.NullString
+	Probability float64
 	LeadID      sql.NullInt32
 	AccountID   sql.NullInt32
 	OwnerID     sql.NullInt32

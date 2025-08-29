@@ -1,132 +1,143 @@
 package services
 
 import (
+	"context"
 	"crm/internal/adapters/database/db"
-	"crm/internal/core/repository"
+	"crm/internal/adapters/kafka"
 	"errors"
-	"fmt"
-
-	"time"
+	"strings"
 )
 
-// Custom errors
 var (
-	ErrInvalidEmail    = errors.New("invalid email format")
 	ErrLeadNotFound    = errors.New("lead not found")
-	ErrMissingRequired = errors.New("missing required fields")
+	ErrInvalidLeadData = errors.New("invalid lead data")
+	ErrInvalidEmail    = errors.New("invalid email format")
 )
 
-type LeadService interface {
-	CreateLead(lead *models.Lead) (*models.Lead, error)
-	UpdateLead(lead *models.Lead) (*models.Lead, error)
-	GetLead(id uint) (*models.Lead, error)
-	GetLeadByEmail(email string) (*models.Lead, error)
-	DeleteLead(id uint) error
-	GetAllLeads() ([]models.Lead, error)
+type LeadServiceInterface interface {
+	CreateLead(ctx context.Context, lead db.CreateLeadParams) (*db.Lead, error)
+	GetLead(ctx context.Context, id int32) (*db.Lead, error)
+	UpdateLead(ctx context.Context, lead db.UpdateLeadParams) (*db.Lead, error)
+	DeleteLead(ctx context.Context, id int32) error
+	GetAllLeads(ctx context.Context, pageNumber, pageSize int32) ([]db.Lead, error)
+	GetLeadByEmail(ctx context.Context, email string) (*db.Lead, error)
 }
 
 type LeadService struct {
 	queries *db.Queries
-	producer KafkaProducer
+	kafka   *kafka.Producer
 }
 
-func NewLeadService(repo repository.LeadRepository) LeadService {
-	return &leadService{repo: repo}
+func NewLeadService(queries *db.Queries, producer *kafka.Producer) *LeadService {
+	return &LeadService{queries: queries, kafka: producer}
 }
 
-// CreateLead creates a new lead in the database, with validation logic.
-func (s *leadService) CreateLead(lead *models.Lead) (*models.Lead, error) {
-	// Validate required fields
-	if lead.FirstName == "" || lead.LastName == "" || lead.Email == "" || lead.Status == "" {
-		fmt.Println("lead.FirstName: ", lead.FirstName+" lead.LastName: ", lead.LastName+" lead.Email: ", lead.Email+" lead.Status: ", lead.Status)
-		return nil, ErrMissingRequired
+// CreateLead validates and creates a new lead.
+func (s *LeadService) CreateLead(ctx context.Context, lead db.CreateLeadParams) (*db.Lead, error) {
+	// Required fields
+	if strings.TrimSpace(lead.FirstName) == "" ||
+		strings.TrimSpace(lead.LastName) == "" ||
+		strings.TrimSpace(lead.Email) == "" ||
+		strings.TrimSpace(lead.Status) == "" {
+		return nil, ErrInvalidLeadData
 	}
 
-	// Validate email format
+	// Email format
 	if !isValidEmail(lead.Email) {
 		return nil, ErrInvalidEmail
 	}
 
-	// Optionally: check for duplicates, or if the user is allowed to create the lead
-	// Example: Check if a lead with the same email already exists
-	existingLead, err := s.repo.GetByEmail(lead.Email)
-	if err == nil && existingLead != nil {
-		return nil, errors.New("a lead with this email already exists")
-	}
-
-	// Create lead in the repository
-	fmt.Println("Creating lead in the repository")
-	return s.repo.Create(lead)
-}
-
-// GetLeadByEmail retrieves a lead by its email address, with error handling.
-func (s *leadService) GetLeadByEmail(email string) (*models.Lead, error) {
-	lead, err := s.repo.GetByEmail(email)
+	created, err := s.queries.CreateLead(ctx, lead)
 	if err != nil {
 		return nil, err
 	}
 
-	if lead == nil {
-		return nil, ErrLeadNotFound
-	}
+	// Kafka event
+	_ = s.kafka.Publish(ctx, kafka.TopicLeadCreated, "lead_created", map[string]interface{}{
+		"id":     created.ID,
+		"email":  created.Email,
+		"status": created.Status,
+	})
 
-	return lead, nil
+	return &created, nil
 }
 
-// UpdateLead updates the lead in the database, with validation logic.
-func (s *leadService) UpdateLead(lead *models.Lead) (*models.Lead, error) {
-	// Validate if the lead exists
-	lead.UpdatedAt = time.Now()
-	existingLead, err := s.repo.GetByID(lead.ID)
-	if err != nil || existingLead == nil {
-		return nil, ErrLeadNotFound
-	}
-
-	// Validate email if it's being changed
-	if lead.Email != "" && !isValidEmail(lead.Email) {
-		return nil, ErrInvalidEmail
-	}
-
-	// Perform update in repository
-	return s.repo.Update(lead)
-}
-
-// GetLead retrieves a lead by its ID, with error handling.
-func (s *leadService) GetLead(id uint) (*models.Lead, error) {
-	lead, err := s.repo.GetByID(id)
+// GetLead retrieves a lead by ID.
+func (s *LeadService) GetLead(ctx context.Context, id int32) (*db.Lead, error) {
+	lead, err := s.queries.GetLeadById(ctx, id)
 	if err != nil {
-		return nil, err
+		return nil, ErrLeadNotFound
+	}
+	return &lead, nil
+}
+
+// UpdateLead validates and updates an existing lead.
+// NOTE: sqlc UpdateLead sets status and assigned_to; ensure ID and (optionally) status sanity.
+func (s *LeadService) UpdateLead(ctx context.Context, lead db.UpdateLeadParams) (*db.Lead, error) {
+	if lead.ID == 0 {
+		return nil, ErrInvalidLeadData
+	}
+	if strings.TrimSpace(lead.Status) == "" {
+		return nil, ErrInvalidLeadData
 	}
 
-	if lead == nil {
+	updated, err := s.queries.UpdateLead(ctx, lead)
+	if err != nil {
 		return nil, ErrLeadNotFound
 	}
 
-	return lead, nil
+	// Kafka event
+	_ = s.kafka.Publish(ctx, kafka.TopicLeadUpdated, "lead_updated", map[string]interface{}{
+		"id":     updated.ID,
+		"email":  updated.Email,
+		"status": updated.Status,
+	})
+
+	return &updated, nil
 }
 
-// DeleteLead removes a lead from the database, ensuring the lead exists.
-func (s *leadService) DeleteLead(id uint) error {
-	lead, err := s.repo.GetByID(id)
-	if err != nil {
-		return err
-	}
-
-	if lead == nil {
+// DeleteLead removes a lead by ID.
+func (s *LeadService) DeleteLead(ctx context.Context, id int32) error {
+	if err := s.queries.DeleteLead(ctx, id); err != nil {
 		return ErrLeadNotFound
 	}
 
-	return s.repo.Delete(id)
+	// Kafka event
+	_ = s.kafka.Publish(ctx, kafka.TopicLeadDeleted, "lead_deleted", map[string]interface{}{
+		"id": id,
+	})
+
+	return nil
 }
 
-// GetAllLeads retrieves all leads from the database.
-func (s *leadService) GetAllLeads() ([]models.Lead, error) {
-	return s.repo.GetAll()
+// GetAllLeads returns a paginated list of leads.
+func (s *LeadService) GetAllLeads(ctx context.Context, pageNumber, pageSize int32) ([]db.Lead, error) {
+	if pageNumber == 0 {
+		pageNumber = 1
+	}
+	if pageSize == 0 {
+		pageSize = 10
+	}
+	offset := (pageNumber - 1) * pageSize
+
+	return s.queries.GetAll(ctx, db.GetAllParams{
+		Limit:  pageSize,
+		Offset: offset,
+	})
 }
 
-// Helper function to validate email addresses using a regex
-// func isValidEmail(email string) bool {
-// 	// Basic email validation using regex
-// 	regex := regexp.MustCompile(`^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$`)
-// 	return regex.MatchString(email)
-// }
+// GetLeadByEmail retrieves a lead by email.
+func (s *LeadService) GetLeadByEmail(ctx context.Context, email string) (*db.Lead, error) {
+	if strings.TrimSpace(email) == "" {
+		return nil, ErrInvalidLeadData
+	}
+	if !isValidEmail(email) {
+		return nil, ErrInvalidEmail
+	}
+
+	lead, err := s.queries.GetLeadByEmail(ctx, email)
+	if err != nil {
+		return nil, ErrLeadNotFound
+	}
+	return &lead, nil
+}

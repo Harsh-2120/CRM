@@ -5,7 +5,6 @@ import (
 	"crm/internal/adapters/database/db"
 	"crm/internal/adapters/kafka"
 	"errors"
-	"regexp"
 	"strings"
 )
 
@@ -138,11 +137,4 @@ func (s *ContactService) ListContacts(ctx context.Context, pageNumber, pageSize 
 		return nil, err
 	}
 	return contacts, nil
-}
-
-// isValidEmail validates the email format using a regular expression.
-func isValidEmail(email string) bool {
-	regex := `^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`
-	re := regexp.MustCompile(regex)
-	return re.MatchString(email)
 }
